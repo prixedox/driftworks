@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0e1116"/>
+  <!-- crawler treads -->
+  <rect x="96" y="356" width="320" height="56" rx="28" fill="#2b3645"/>
+  <circle cx="150" cy="384" r="20" fill="#5ad1c0"/>
+  <circle cx="256" cy="384" r="20" fill="#5ad1c0"/>
+  <circle cx="362" cy="384" r="20" fill="#5ad1c0"/>
+  <!-- platform / factory body -->
+  <rect x="128" y="150" width="256" height="180" rx="18" fill="#141a22" stroke="#2b3645" stroke-width="8"/>
+  <!-- packets flowing on the pulse -->
+  <circle cx="176" cy="240" r="22" fill="#e8a35a"/>
+  <circle cx="256" cy="240" r="22" fill="#8fd0ff"/>
+  <circle cx="336" cy="240" r="22" fill="#e8a35a"/>
+</svg>
