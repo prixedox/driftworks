@@ -66,6 +66,7 @@ async function main(): Promise<void> {
     },
     toggleExplain: (on) => renderer.setExplain(on),
     move: (x, y) => renderer.setMove(x, y),
+    rotateView: (d) => renderer.rotateView(d),
     reset: () => {
       try {
         localStorage.removeItem(SAVE_KEY);
@@ -124,6 +125,14 @@ async function main(): Promise<void> {
   };
   window.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
+    if (k === 'q') {
+      renderer.rotateView(-1);
+      return;
+    }
+    if (k === 'e') {
+      renderer.rotateView(1);
+      return;
+    }
     if (k in KEYMAP) {
       keys.add(k);
       recomputeMove();
@@ -137,7 +146,7 @@ async function main(): Promise<void> {
 
   // Build / erase by tapping or dragging. Dragging the Belt tool lays a
   // connected, auto-oriented line — the key touch-building affordance.
-  const canvas = renderer.app.canvas;
+  const canvas = renderer.canvas;
   let dragging = false;
   let lastCell = -1;
 

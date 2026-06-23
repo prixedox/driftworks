@@ -25,15 +25,15 @@ To try it on your phone, run `npm run dev -- --host`, then open the
 
 ## How to play (prototype)
 
-- It boots with a working chain: **Generator → Miner → belts → Smelter → belts → Storage**, plus an **Engine**.
+- It boots with a working chain: **Generator → Miner → belts → Smelter → belts → Storage**.
 - Watch ore (orange) flow, get smelted into plates (blue), and pile up in Storage.
-- Pick a tool from the bottom bar, set direction with **Rotate**, and **tap a cell** to build.
-  **Drag** with the Conveyor tool to lay a connected belt line; drag with Erase to wipe a row.
-- **▶ Drive** is the gas pedal: the Crawler travels to the next **⛏ ore zone** (orange band on the
-  journey ribbon). Driving spends power, so production slows while you move — that's the core trade-off.
-- Miners only work while you're over an ore zone (they dim out otherwise).
-- **Erase** removes a module. **Pause / Speed / Explain / Reset** control the view and sim.
-- Progress **autosaves** to the browser and reloads automatically. **Reset** wipes the save.
+- **Walk** the character with **WASD / arrow keys** or the on-screen stick; the camera follows you.
+  Movement and tap-to-build are relative to the current view.
+- **Rotate the camera** 90° with **Q / E** or the **↻ View** button (isometric, snaps to 4 corners).
+- Pick a tool, set placement direction with **Build →**, and **tap a tile** to build.
+  **Drag** the Belt tool to lay a connected line; drag with **Erase** to wipe.
+- Miners only work when placed **on ore** (the raised amber deposits). The factory keeps running while you walk away.
+- **Pause / Speed / Explain / Reset** control the view and sim. Progress **autosaves**; **Reset** wipes the save.
 - Try deleting the Generator → power goes red and machines brown out.
 
 ## Architecture
@@ -45,7 +45,7 @@ src/
     world.ts        the World: grid, modules, packets, the advance() pulse step
     worker.ts       runs the World on a fixed schedule, ships Snapshots out
   render/
-    renderer.ts     PixiJS v8 layer; interpolates packets between pulses
+    renderer.ts     Three.js layer; isometric 3D, follow-cam, 90° snap-rotation
   ui/
     hud.ts          DOM toolbar + stats (touch-friendly)
   main.ts           wires worker <-> renderer <-> HUD + input
@@ -63,12 +63,12 @@ The renderer is a pure view of `Snapshot`s; it owns no game state.
 
 ## Done so far
 
-- Deterministic packet/Pulse sim in a Web Worker; PixiJS render layer.
-- Explanatory visuals: belt flow chevrons, working-machine glows, the Pulse beat, item icons, captions.
-- **Crawler movement**: Drive gas pedal, Engine module, distance + journey ribbon, ore-field-gated mining,
-  power split between propulsion and production.
+- Deterministic packet/Pulse sim in a Web Worker; **Three.js isometric-3D** render layer.
+- **Walkable character** in a large tiled world, with a 90°-snap-rotation follow-camera.
+- **3D world**: extruded machine blocks with shadows, a raised ore platform with crystals, items as blocks on belts.
+- Ore-gated mining (miners only work on ore); the factory runs autonomously while you explore.
 - **Save/load**: throttled autosave to localStorage + save-on-hide + auto-resume.
-- **Drag-to-build** connected belt lines (and drag-erase).
+- **Drag-to-build** connected belt lines (and drag-erase), rotation-aware tap picking via raycast.
 
 ## Not yet here (next steps)
 

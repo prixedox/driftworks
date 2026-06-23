@@ -9,6 +9,7 @@ export interface HudCallbacks {
   cycleSpeed: () => void;
   toggleExplain: (on: boolean) => void;
   move: (x: number, y: number) => void;
+  rotateView: (d: number) => void;
   reset: () => void;
 }
 
@@ -107,8 +108,10 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
     bar.appendChild(btn);
   }
 
-  const rotateBtn = el('button', 'dw-btn dw-ctrl', `Rotate ${DIR_GLYPH[1]}`);
+  const rotateBtn = el('button', 'dw-btn dw-ctrl', `Build ${DIR_GLYPH[1]}`);
   rotateBtn.addEventListener('click', () => cb.rotate());
+  const viewBtn = el('button', 'dw-btn dw-ctrl', '↻ View');
+  viewBtn.addEventListener('click', () => cb.rotateView(1));
   const pauseBtn = el('button', 'dw-btn dw-ctrl', 'Pause');
   pauseBtn.addEventListener('click', () => cb.togglePause());
   const speedBtn = el('button', 'dw-btn dw-ctrl', 'Speed');
@@ -126,7 +129,7 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
   const resetBtn = el('button', 'dw-btn dw-ctrl', 'Reset');
   resetBtn.addEventListener('click', () => cb.reset());
 
-  bar.append(rotateBtn, pauseBtn, speedBtn, explainBtn, resetBtn);
+  bar.append(rotateBtn, viewBtn, pauseBtn, speedBtn, explainBtn, resetBtn);
 
   const hint = el('div', 'dw-hint', 'Walk with WASD / arrows or the left stick. Tap a tile to build; drag belts. Put Miners on ore.');
 
@@ -146,7 +149,7 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
       plateEl.textContent = `Plate ${s.storage.plate}`;
     },
     setDir(d) {
-      rotateBtn.textContent = `Rotate ${DIR_GLYPH[d]}`;
+      rotateBtn.textContent = `Build ${DIR_GLYPH[d]}`;
     },
     setPaused(p) {
       pauseBtn.textContent = p ? 'Resume' : 'Pause';

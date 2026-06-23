@@ -117,7 +117,7 @@ async play and, later, lockstep co-op can be added without a rewrite.
 | Layer | Choice | Why |
 |---|---|---|
 | Language | **TypeScript** | Required at this scale. |
-| Rendering | **PixiJS v8** (WebGL/WebGPU) with a **follow-camera world container** | Fast for many animated sprites; thin render layer over the sim. |
+| Rendering | **Three.js** — isometric orthographic camera with 90° snap-rotation, a follow-cam over a tiled 3D world | Real 2.5D/3D depth that stays readable; thin render layer over the sim (swappable — it was PixiJS before). |
 | Simulation | **Deterministic, integer, tick-based sim in a Web Worker** | Off the render thread (smooth on phones); determinism = replays, blueprint validation, future co-op. |
 | Player/camera | Client-side entity; camera centres on the player; world scrolls | The factory sim stays independent of the player (it runs while you walk away). |
 | Packaging | **PWA** now; **Capacitor** for iOS/Android later | One codebase → web + both stores. |
