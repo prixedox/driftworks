@@ -8,6 +8,14 @@ const TILE = 46;
 const WALK_SPEED = 6.5;
 const AURA_POOL = 40;
 const PARTICLE_POOL = 220;
+const MACH_H = 15; // extruded machine height (px) — the 2.5D "lift" off the floor
+
+const darken = (c: number, f: number): number => {
+  const r = Math.floor(((c >> 16) & 255) * f);
+  const g = Math.floor(((c >> 8) & 255) * f);
+  const b = Math.floor((c & 255) * f);
+  return (r << 16) | (g << 8) | b;
+};
 
 interface Particle {
   active: boolean;
@@ -177,10 +185,10 @@ export class Renderer {
       const cyp = Math.floor(cell / w);
       const x = cxp * TILE;
       const y = cyp * TILE;
-      for (let k = 0; k < 4; k++) {
-        g.circle(x + (0.2 + rnd() * 0.6) * TILE, y + (0.2 + rnd() * 0.6) * TILE, 1.8 + rnd() * 2.4).fill({
+      for (let k = 0; k < 2; k++) {
+        g.circle(x + (0.2 + rnd() * 0.6) * TILE, y + (0.2 + rnd() * 0.6) * TILE, 1.6 + rnd() * 2).fill({
           color: 0xffd07a,
-          alpha: 0.9,
+          alpha: 0.85,
         });
       }
       // outline only on edges facing non-ore (auto-tiling the blob border)
@@ -191,11 +199,22 @@ export class Renderer {
     }
     g.stroke({ width: 2, color: 0xc98a3e, alpha: 0.8 });
     g.rect(0, 0, w * TILE, h * TILE).stroke({ width: 4, color: 0x2b3645 });
+
+    // Raised ore crystals poking out of the deposit (drawn last so fills don't
+    // disturb the edge-outline path above).
+    for (const cell of ore) {
+      if (rnd() > 0.4) continue;
+      const ccx = (cell % w) * TILE + (0.3 + rnd() * 0.4) * TILE;
+      const ccy = Math.floor(cell / w) * TILE + (0.3 + rnd() * 0.4) * TILE;
+      g.ellipse(ccx + 2, ccy + 5, 5.5, 2.6).fill({ color: 0x000000, alpha: 0.22 }); // shadow
+      g.poly([ccx, ccy - 9, ccx + 5, ccy - 1, ccx, ccy + 3, ccx - 5, ccy - 1]).fill({ color: 0xc98336 }); // crystal
+      g.poly([ccx, ccy - 9, ccx + 5, ccy - 1, ccx, ccy - 1]).fill({ color: 0xffd98a }); // lit facet
+    }
   }
 
-  private arrow(g: Graphics, cell: number, dir: Dir): void {
+  private arrow(g: Graphics, cell: number, dir: Dir, yoff = 0): void {
     const cx = this.cx(cell);
-    const cy = this.cy(cell);
+    const cy = this.cy(cell) + yoff;
     const ex = cx + DX[dir] * TILE * 0.34;
     const ey = cy + DY[dir] * TILE * 0.34;
     const bx = -DX[dir];
@@ -219,24 +238,37 @@ export class Renderer {
   private drawModules(): void {
     if (!this.snap) return;
     for (const child of this.moduleLayer.removeChildren()) child.destroy();
+    const w = this.snap.w;
     const s = TILE;
-    for (const m of this.snap.modules) {
-      const def = DEFS[m.type];
+    const sz = s - 6;
+    // Top rows first so lower (nearer) machines overlap the ones behind them.
+    const mods = [...this.snap.modules].sort((a, b) => Math.floor(a.cell / w) - Math.floor(b.cell / w));
+    for (const m of mods) {
       const cx = this.cx(m.cell);
       const cy = this.cy(m.cell);
-      const x = cx - s / 2 + 3;
-      const y = cy - s / 2 + 3;
-      const sz = s - 6;
+      const x = cx - sz / 2;
+      const y = cy - sz / 2;
       const g = new Graphics();
-      g.roundRect(x, y, sz, sz, 9).fill({ color: def.color });
-      g.roundRect(x + 2, y + 2, sz - 4, sz * 0.42, 7).fill({ color: 0xffffff, alpha: 0.1 }); // top sheen
-      g.roundRect(x, y + sz * 0.6, sz, sz * 0.4, 7).fill({ color: 0x000000, alpha: 0.16 }); // bottom shade
-      g.roundRect(x, y, sz, sz, 9).stroke({ width: 2.5, color: 0x080b0f, alpha: 0.85 });
-      if (m.type === 'miner' || m.type === 'smelter') this.arrow(g, m.cell, m.dir);
+
+      if (m.type === 'conveyor') {
+        // Belts are floor-level channels (no height).
+        g.roundRect(x, y, sz, sz, 6).fill({ color: 0x222c36 });
+        g.roundRect(x + 4, y + 4, sz - 8, sz - 8, 4).fill({ color: 0x2f3a47 });
+        this.moduleLayer.addChild(g);
+        continue;
+      }
+
+      const def = DEFS[m.type];
+      g.ellipse(cx + 5, cy + sz * 0.42, sz * 0.55, sz * 0.28).fill({ color: 0x000000, alpha: 0.34 }); // ground shadow
+      g.roundRect(x, y, sz, sz, 9).fill({ color: darken(def.color, 0.5) }); // base / front wall (the height)
+      g.roundRect(x, y - MACH_H, sz, sz, 9).fill({ color: def.color }); // raised top face
+      g.roundRect(x + 2, y - MACH_H + 2, sz - 4, sz * 0.4, 7).fill({ color: 0xffffff, alpha: 0.13 }); // sheen
+      g.roundRect(x, y - MACH_H, sz, sz, 9).stroke({ width: 2.5, color: 0x080b0f, alpha: 0.9 });
+      if (m.type === 'miner' || m.type === 'smelter') this.arrow(g, m.cell, m.dir, -MACH_H);
       this.moduleLayer.addChild(g);
-      this.moduleLayer.addChild(this.label(def.short, cx, cy - s * 0.16, Math.max(8, Math.floor(s * 0.17)), 0xffffff));
-      if (this.explain && m.type !== 'conveyor') {
-        this.moduleLayer.addChild(this.label(EXPLAIN[m.type], cx, cy + s * 0.62, Math.max(8, Math.floor(s * 0.15)), 0xa9bccf));
+      this.moduleLayer.addChild(this.label(def.short, cx, cy - MACH_H, Math.max(8, Math.floor(s * 0.17)), 0xffffff));
+      if (this.explain) {
+        this.moduleLayer.addChild(this.label(EXPLAIN[m.type], cx, cy + s * 0.5, Math.max(8, Math.floor(s * 0.15)), 0xa9bccf));
       }
     }
   }
@@ -275,6 +307,7 @@ export class Renderer {
     for (const m of this.snap.modules) {
       const cx = this.cx(m.cell);
       const cy = this.cy(m.cell);
+      const top = cy - MACH_H; // raised machines: effects sit on the top face
       switch (m.type) {
         case 'conveyor':
           for (let k = 0; k < 3; k++) {
@@ -283,27 +316,27 @@ export class Renderer {
           }
           break;
         case 'miner':
-          if (m.busy) ai = this.aura(ai, cx, cy, s * 2.0, 0xffcf6b, 0.45 * beat + 0.12);
+          if (m.busy) ai = this.aura(ai, cx, top, s * 2.0, 0xffcf6b, 0.45 * beat + 0.12);
           break;
         case 'smelter': {
-          const r = s * 0.34;
-          g.circle(cx, cy, r).stroke({ width: 2, color: 0xffd24a, alpha: 0.45 });
+          const r = s * 0.32;
+          g.circle(cx, top, r).stroke({ width: 2, color: 0xffd24a, alpha: 0.45 });
           const p = m.progress ?? 0;
           if (p > 0) {
-            g.moveTo(cx, cy);
-            g.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, p));
-            g.lineTo(cx, cy);
+            g.moveTo(cx, top);
+            g.arc(cx, top, r, -Math.PI / 2, -Math.PI / 2 + TAU * Math.min(1, p));
+            g.lineTo(cx, top);
             g.fill({ color: 0xffd24a, alpha: 0.4 });
           }
-          if (m.busy) ai = this.aura(ai, cx, cy, s * 2.2, 0xff7a4a, 0.45 * beat + 0.18);
+          if (m.busy) ai = this.aura(ai, cx, top, s * 2.2, 0xff7a4a, 0.45 * beat + 0.18);
           break;
         }
         case 'generator':
-          ai = this.aura(ai, cx, cy, s * 1.7, 0xffe27a, 0.16 + 0.14 * beat);
+          ai = this.aura(ai, cx, top, s * 1.7, 0xffe27a, 0.16 + 0.14 * beat);
           break;
         case 'storage': {
           const since = (performance.now() - this.storageFlash) / 360;
-          if (since >= 0 && since < 1) ai = this.aura(ai, cx, cy, s * 2.0, 0x6effb0, 0.5 * (1 - since));
+          if (since >= 0 && since < 1) ai = this.aura(ai, cx, top, s * 2.0, 0x6effb0, 0.5 * (1 - since));
           break;
         }
       }
@@ -312,15 +345,17 @@ export class Renderer {
   }
 
   private drawPacketCore(g: Graphics, item: ItemType): void {
-    const r = TILE * 0.17;
+    const r = TILE * 0.16;
     g.clear();
-    if (item === 'ore') {
-      g.circle(0, 0, r).fill({ color: ITEM_COLOR[item] }).stroke({ width: 2, color: 0xffffff, alpha: 0.6 });
-    } else {
-      g.roundRect(-r * 1.15, -r * 0.72, r * 2.3, r * 1.44, 3)
-        .fill({ color: ITEM_COLOR[item] })
-        .stroke({ width: 2, color: 0xffffff, alpha: 0.6 });
-    }
+    const c = ITEM_COLOR[item];
+    const d = darken(c, 0.6);
+    const hw = item === 'plate' ? r * 1.25 : r; // plates are wider, flatter ingots
+    const hh = item === 'plate' ? r * 0.7 : r;
+    g.ellipse(0, r * 0.95, hw * 1.05, r * 0.42).fill({ color: 0x000000, alpha: 0.3 }); // shadow
+    g.roundRect(-hw, -hh * 0.1, hw * 2, hh * 1.1, 3).fill({ color: d }); // front face
+    g.roundRect(-hw, -hh * 0.9, hw * 2, hh * 1.1, 3)
+      .fill({ color: c })
+      .stroke({ width: 1.5, color: 0xffffff, alpha: 0.55 }); // raised top
   }
 
   private makePacket(item: ItemType): { c: Container; glow: Sprite } {
@@ -407,13 +442,14 @@ export class Renderer {
     g.clear();
     const bob = this.moving ? Math.sin(time * 0.012) * 2 : Math.sin(time * 0.003) * 1;
     const x = this.player.x * TILE;
-    const y = this.player.y * TILE + bob;
+    const groundY = this.player.y * TILE;
     const r = TILE * 0.3;
-    g.ellipse(x, y + r * 0.9, r * 1.1, r * 0.45).fill({ color: 0x000000, alpha: 0.3 }); // shadow
+    const y = groundY - r * 0.7 + bob; // body lifted off the floor for the 2.5D look
+    g.ellipse(x, groundY + r * 0.4, r * 1.05, r * 0.4).fill({ color: 0x000000, alpha: 0.32 }); // ground shadow
     g.circle(x, y, r).fill({ color: 0x2bb5a4 }).stroke({ width: 3, color: 0x07100e });
-    g.circle(x, y - r * 0.18, r * 0.62).fill({ color: 0x7df0e0, alpha: 0.85 }); // inner core
-    const nx = x + DX[this.facing] * r * 0.62;
-    const ny = y + DY[this.facing] * r * 0.62;
+    g.circle(x, y - r * 0.18, r * 0.6).fill({ color: 0x7df0e0, alpha: 0.85 }); // inner core
+    const nx = x + DX[this.facing] * r * 0.6;
+    const ny = y + DY[this.facing] * r * 0.6;
     g.circle(nx, ny, r * 0.22).fill({ color: 0x07100e }); // facing eye
     this.playerGlow.position.set(x, y);
     this.playerGlow.alpha = this.moving ? 0.5 : 0.34;
