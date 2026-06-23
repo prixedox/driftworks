@@ -4,6 +4,8 @@ import type { Command, WorkerMessage } from './types';
 // The sim worker. It owns the authoritative World and advances it on a fixed
 // schedule. The schedule (wall clock) is NOT part of the simulation — only the
 // number of advance() calls and the command order matter for determinism.
+// The tick loop only starts once the world has been loaded (init/load/reset),
+// so we never post an empty pre-initialised world.
 
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 
@@ -11,6 +13,7 @@ const world = new World();
 let pulseMs = 600;
 let paused = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
+let running = false;
 
 function post(): void {
   const msg: WorkerMessage = { type: 'snapshot', snapshot: world.snapshot(pulseMs, paused) };
@@ -30,6 +33,13 @@ function tick(): void {
   schedule();
 }
 
+function ensureRunning(): void {
+  if (!running) {
+    running = true;
+    schedule();
+  }
+}
+
 ctx.onmessage = (e: MessageEvent<Command>) => {
   const cmd = e.data;
   switch (cmd.type) {
@@ -37,10 +47,12 @@ ctx.onmessage = (e: MessageEvent<Command>) => {
     case 'reset':
       world.loadDemo();
       post();
+      ensureRunning();
       break;
     case 'load':
       world.loadSave(cmd.save);
       post();
+      ensureRunning();
       break;
     case 'place':
       world.place(cmd.cell, cmd.module, cmd.dir);
@@ -59,5 +71,3 @@ ctx.onmessage = (e: MessageEvent<Command>) => {
       break;
   }
 };
-
-schedule();
