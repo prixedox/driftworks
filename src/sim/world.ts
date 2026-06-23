@@ -143,11 +143,12 @@ export class World {
     for (const p of this.packets) occ.add(this.microKey(p.cell, p.slot));
 
     const removed = new Set<number>();
+    const movedThisTick = new Set<number>(); // each item advances at most ONE slot/tick
     let moved = true;
     while (moved) {
       moved = false;
       for (const p of this.packets) {
-        if (removed.has(p.id)) continue;
+        if (removed.has(p.id) || movedThisTick.has(p.id)) continue;
         const mod = this.modules.get(p.cell);
         if (!mod || mod.type !== 'conveyor') continue;
         const here = this.microKey(p.cell, p.slot);
@@ -157,6 +158,7 @@ export class World {
             occ.delete(here);
             occ.add(next);
             p.slot++;
+            movedThisTick.add(p.id);
             moved = true;
           }
         } else {
@@ -171,6 +173,7 @@ export class World {
               occ.add(next);
               p.cell = t;
               p.slot = 0;
+              movedThisTick.add(p.id);
               moved = true;
             }
           } else if (tmod.type === 'smelter') {
