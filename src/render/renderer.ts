@@ -197,7 +197,7 @@ export class Renderer {
     // ore deposits (instanced raised tiles) + crystals
     const ore = s.ore;
     if (ore.length) {
-      const oreGeo = new BoxGeometry(0.98, 0.16, 0.98);
+      const oreGeo = new BoxGeometry(0.98, 0.1, 0.98);
       const oreMat = new MeshStandardMaterial({ color: 0x9a6a2e, roughness: 0.95 });
       const tiles = new InstancedMesh(oreGeo, oreMat, ore.length);
       tiles.receiveShadow = true;
@@ -210,7 +210,7 @@ export class Renderer {
       };
       ore.forEach((cell, i) => {
         const p = this.cw(cell);
-        m.makeTranslation(p.x, 0.08, p.z);
+        m.makeTranslation(p.x, 0.05, p.z);
         tiles.setMatrixAt(i, m);
         if (rnd() < 0.4) crystalPos.push(p.x + (rnd() - 0.5) * 0.4, 0, p.z + (rnd() - 0.5) * 0.4);
       });
@@ -219,12 +219,12 @@ export class Renderer {
       this.disposables.push(oreGeo, oreMat);
 
       if (crystalPos.length) {
-        const cGeo = new ConeGeometry(0.16, 0.5, 5);
+        const cGeo = new ConeGeometry(0.12, 0.12, 5);
         const cMat = new MeshStandardMaterial({ color: 0xf0b25a, emissive: 0x6b4410, emissiveIntensity: 0.4, roughness: 0.6 });
         const crystals = new InstancedMesh(cGeo, cMat, crystalPos.length / 3);
         crystals.castShadow = true;
         for (let i = 0; i < crystalPos.length / 3; i++) {
-          m.makeTranslation(crystalPos[i * 3], 0.32, crystalPos[i * 3 + 2]);
+          m.makeTranslation(crystalPos[i * 3], 0.13, crystalPos[i * 3 + 2]);
           crystals.setMatrixAt(i, m);
         }
         crystals.instanceMatrix.needsUpdate = true;
@@ -288,8 +288,8 @@ export class Renderer {
     let body: Mesh | undefined;
 
     if (m.type === 'conveyor') {
-      const belt = new Mesh(new BoxGeometry(0.92, 0.08, 0.92), this.beltMat);
-      belt.position.y = 0.06;
+      const belt = new Mesh(new BoxGeometry(0.92, 0.16, 0.92), this.beltMat);
+      belt.position.y = 0.13; // sits above the ore deposit layer so belts stay visible on ore
       belt.rotation.y = [Math.PI, -Math.PI / 2, 0, Math.PI / 2][m.dir];
       belt.receiveShadow = true;
       g.add(belt);
@@ -460,7 +460,7 @@ export class Renderer {
     for (const p of this.snap.packets) {
       const mesh = this.packetMap.get(p.id);
       if (!mesh) continue;
-      mesh.position.set(p.px + (p.x - p.px) * t, 0.28, p.py + (p.y - p.py) * t);
+      mesh.position.set(p.px + (p.x - p.px) * t, 0.31, p.py + (p.y - p.py) * t);
     }
     if (!this.snap.paused) this.beltTex.offset.y = (this.beltTex.offset.y - dt * 0.9 + 1) % 1;
 
