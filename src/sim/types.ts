@@ -19,17 +19,21 @@ export interface ModuleView {
   busy?: boolean;
   /** Smelter cook progress, 0..1. */
   progress?: number;
-  /** Items held internally (smelter ore buffer). */
+  /** Items held internally (smelter ore input buffer). */
   buffer?: number;
+  /** Finished items waiting to be emitted (smelter plate output). */
+  out?: number;
 }
 
 export interface PacketView {
   id: number;
   item: ItemType;
-  /** Cell the packet occupied before the current pulse (for render interpolation). */
-  prevCell: number;
-  /** Cell the packet occupies now. */
-  cell: number;
+  /** Continuous tile coordinates this tick (x = column, y = row). */
+  x: number;
+  y: number;
+  /** Previous tick's coordinates, for smooth render interpolation. */
+  px: number;
+  py: number;
 }
 
 /** Immutable view of the world the worker ships to the renderer each pulse. */

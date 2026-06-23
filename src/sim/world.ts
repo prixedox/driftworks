@@ -1,21 +1,20 @@
 import { DX, DY, type Dir, type ItemType, type ModuleType, type ModuleView, type SaveState, type Snapshot } from './types';
 
-// The simulation is a deterministic, integer-only, tick-based state machine.
-// Given the same sequence of commands and the same number of advance() calls it
-// always produces the same state — enabling replays, blueprint validation, and
-// future lockstep co-op. NOTHING here touches the DOM, PixiJS, or wall time.
+// Deterministic, integer-only, tick-based simulation. Belts use sub-tile
+// "slots" so items flow continuously and pack densely against each other
+// (Factorio-style), while the model stays discrete and reproducible.
 
 export const GRID_W = 40;
 export const GRID_H = 26;
 
-const MINER_PERIOD = 1; // pulses of cooldown after emitting -> a packet every 2 pulses
-const SMELT_TIME = 3; // pulses to turn one ore into one plate
-const SMELT_CAP = 3; // ore buffer capacity of a smelter
+const SLOTS = 4; // sub-tile positions per belt cell (items move 1 slot/tick)
+const MINER_PERIOD = 1; // cooldown ticks after emitting -> an item roughly every 2 ticks
+const SMELT_TIME = 6; // ticks to turn one ore into one plate
+const SMELT_CAP = 4; // ore the smelter can hold
 const MINER_POWER = 2;
 const SMELT_POWER = 3;
 const GEN_POWER = 12;
 
-/** Small deterministic PRNG so world generation is reproducible without state. */
 function mulberry32(seed: number): () => number {
   let a = seed;
   return () => {
@@ -30,25 +29,27 @@ function mulberry32(seed: number): () => number {
 interface ModuleInst {
   type: ModuleType;
   dir: Dir;
-  cooldown: number; // miner
-  inBuf: number; // smelter input buffer
-  progress: number; // smelter processing progress
-  outBuf: number; // smelter finished plates awaiting emission
-  busy: boolean; // did real work during the last pulse (for animation)
+  cooldown: number;
+  inBuf: number;
+  progress: number;
+  outBuf: number;
+  busy: boolean;
 }
 
 interface Packet {
   id: number;
   item: ItemType;
   cell: number;
+  slot: number; // 0..SLOTS-1 along the belt's direction
   prevCell: number;
+  prevSlot: number;
 }
 
 export class World {
   readonly w = GRID_W;
   readonly h = GRID_H;
   modules = new Map<number, ModuleInst>();
-  ore = new Set<number>(); // cells with an ore deposit
+  ore = new Set<number>();
   packets: Packet[] = [];
   private nextId = 1;
   pulse = 0;
@@ -86,12 +87,11 @@ export class World {
     }
   }
 
-  /** Deterministically scatter ore deposits across the map. */
   private genWorld(): void {
     this.ore.clear();
     this.modules.clear();
     this.packets = [];
-    this.addOreBlob(20, 13, 3); // guaranteed patch under the starter base
+    this.addOreBlob(20, 13, 3);
     const rng = mulberry32(1337);
     for (let i = 0; i < 7; i++) {
       const x = 4 + Math.floor(rng() * (this.w - 8));
@@ -100,7 +100,6 @@ export class World {
     }
   }
 
-  /** A small pre-built base near the centre so the first frame already shows flow. */
   loadDemo(): void {
     this.genWorld();
     this.storage = { ore: 0, plate: 0 };
@@ -109,7 +108,7 @@ export class World {
     this.nextId = 1;
     const y = 13;
     this.place(this.cell(20, 11), 'generator', 1);
-    this.place(this.cell(20, y), 'miner', 1); // sits on the central ore patch
+    this.place(this.cell(20, y), 'miner', 1);
     this.place(this.cell(21, y), 'conveyor', 1);
     this.place(this.cell(22, y), 'conveyor', 1);
     this.place(this.cell(23, y), 'smelter', 1);
@@ -118,9 +117,8 @@ export class World {
     this.place(this.cell(26, y), 'storage', 1);
   }
 
-  /** Restore a saved game. In-flight packets and machine buffers are not saved. */
   loadSave(s: SaveState): void {
-    this.genWorld(); // ore is deterministic, so regenerate rather than store it
+    this.genWorld();
     this.nextId = 1;
     this.storage = { ore: s.storage.ore ?? 0, plate: s.storage.plate ?? 0 };
     this.pulse = s.pulse ?? 0;
@@ -128,18 +126,22 @@ export class World {
     for (const m of s.modules) this.place(m.cell, m.type, m.dir);
   }
 
-  /** Advance the world by exactly one pulse. */
+  private microKey(cell: number, slot: number): number {
+    return cell * SLOTS + slot;
+  }
+
   advance(): void {
-    // 1. Remember where every packet was, so the renderer can interpolate.
-    for (const p of this.packets) p.prevCell = p.cell;
+    for (const p of this.packets) {
+      p.prevCell = p.cell;
+      p.prevSlot = p.slot;
+    }
     for (const m of this.modules.values()) m.busy = false;
 
-    // 2. Occupancy of conveyor cells (packets only ever ride conveyors).
+    // Occupancy of belt slots; items move one slot/tick and can't overlap, so
+    // they pack and back up against whatever is ahead.
     const occ = new Set<number>();
-    for (const p of this.packets) occ.add(p.cell);
+    for (const p of this.packets) occ.add(this.microKey(p.cell, p.slot));
 
-    // 3. Move packets along belts; consumers absorb. Repeat passes so a full
-    //    chain advances in one pulse (the front moves first, freeing space).
     const removed = new Set<number>();
     let moved = true;
     while (moved) {
@@ -148,37 +150,48 @@ export class World {
         if (removed.has(p.id)) continue;
         const mod = this.modules.get(p.cell);
         if (!mod || mod.type !== 'conveyor') continue;
-        const t = this.neighbor(p.cell, mod.dir);
-        if (t < 0) continue;
-        const tmod = this.modules.get(t);
-        if (!tmod) continue;
-        if (tmod.type === 'conveyor') {
-          if (!occ.has(t)) {
-            occ.delete(p.cell);
-            occ.add(t);
-            p.cell = t;
+        const here = this.microKey(p.cell, p.slot);
+        if (p.slot < SLOTS - 1) {
+          const next = this.microKey(p.cell, p.slot + 1);
+          if (!occ.has(next)) {
+            occ.delete(here);
+            occ.add(next);
+            p.slot++;
             moved = true;
           }
-        } else if (tmod.type === 'smelter') {
-          if (p.item === 'ore' && tmod.inBuf < SMELT_CAP) {
-            tmod.inBuf++;
+        } else {
+          const t = this.neighbor(p.cell, mod.dir);
+          if (t < 0) continue;
+          const tmod = this.modules.get(t);
+          if (!tmod) continue;
+          if (tmod.type === 'conveyor') {
+            const next = this.microKey(t, 0);
+            if (!occ.has(next)) {
+              occ.delete(here);
+              occ.add(next);
+              p.cell = t;
+              p.slot = 0;
+              moved = true;
+            }
+          } else if (tmod.type === 'smelter') {
+            if (p.item === 'ore' && tmod.inBuf < SMELT_CAP) {
+              tmod.inBuf++;
+              removed.add(p.id);
+              occ.delete(here);
+              moved = true;
+            }
+          } else if (tmod.type === 'storage') {
+            this.storage[p.item]++;
             removed.add(p.id);
-            occ.delete(p.cell);
+            occ.delete(here);
             moved = true;
           }
-        } else if (tmod.type === 'storage') {
-          this.storage[p.item]++;
-          removed.add(p.id);
-          occ.delete(p.cell);
-          moved = true;
         }
       }
     }
     if (removed.size) this.packets = this.packets.filter((p) => !removed.has(p.id));
 
-    // 4. Power: generators produce; miners (only on ore) and smelters draw.
-    //    Allocated greedily in cell order so a deficit causes a deterministic
-    //    brown-out.
+    // Power: generators produce; miners (only on ore) and smelters draw.
     let produced = 0;
     for (const m of this.modules.values()) if (m.type === 'generator') produced += GEN_POWER;
     let budget = produced;
@@ -192,7 +205,7 @@ export class World {
       if (m.type === 'miner' && m.cooldown <= 0 && this.ore.has(c)) {
         const out = this.neighbor(c, m.dir);
         const omod = out >= 0 ? this.modules.get(out) : undefined;
-        if (omod && omod.type === 'conveyor' && !occ.has(out)) {
+        if (omod && omod.type === 'conveyor' && !occ.has(this.microKey(out, 0))) {
           wants = true;
           draw = MINER_POWER;
         }
@@ -210,16 +223,16 @@ export class World {
     }
     this.power = { produced, used: produced - budget, deficit: desired > produced };
 
-    // 5. Process machines and emit new packets onto free output conveyors.
+    // Process machines; emit onto the entry slot of the output belt.
     for (const c of cells) {
       const m = this.modules.get(c)!;
       if (m.type === 'miner') {
         if (m.cooldown > 0) m.cooldown--;
         if (worked.has(c)) {
           const out = this.neighbor(c, m.dir);
-          if (out >= 0 && !occ.has(out) && this.modules.get(out)?.type === 'conveyor') {
-            this.packets.push({ id: this.nextId++, item: 'ore', cell: out, prevCell: out });
-            occ.add(out);
+          if (out >= 0 && this.modules.get(out)?.type === 'conveyor' && !occ.has(this.microKey(out, 0))) {
+            this.packets.push({ id: this.nextId++, item: 'ore', cell: out, slot: 0, prevCell: out, prevSlot: 0 });
+            occ.add(this.microKey(out, 0));
             m.cooldown = MINER_PERIOD;
             m.busy = true;
           }
@@ -236,9 +249,9 @@ export class World {
         }
         if (m.outBuf > 0) {
           const out = this.neighbor(c, m.dir);
-          if (out >= 0 && !occ.has(out) && this.modules.get(out)?.type === 'conveyor') {
-            this.packets.push({ id: this.nextId++, item: 'plate', cell: out, prevCell: out });
-            occ.add(out);
+          if (out >= 0 && this.modules.get(out)?.type === 'conveyor' && !occ.has(this.microKey(out, 0))) {
+            this.packets.push({ id: this.nextId++, item: 'plate', cell: out, slot: 0, prevCell: out, prevSlot: 0 });
+            occ.add(this.microKey(out, 0));
             m.outBuf--;
           }
         }
@@ -246,6 +259,15 @@ export class World {
     }
 
     this.pulse++;
+  }
+
+  /** Continuous tile coordinates of a slot along its belt's direction. */
+  private posOf(cell: number, slot: number): [number, number] {
+    const col = cell % this.w;
+    const row = Math.floor(cell / this.w);
+    const d = this.modules.get(cell)?.dir ?? 1;
+    const along = (slot + 0.5) / SLOTS - 0.5;
+    return [col + 0.5 + DX[d] * along, row + 0.5 + DY[d] * along];
   }
 
   snapshot(pulseMs: number, paused: boolean): Snapshot {
@@ -260,6 +282,7 @@ export class World {
         if (m.type === 'smelter') {
           v.progress = m.progress / SMELT_TIME;
           v.buffer = m.inBuf;
+          v.out = m.outBuf;
           v.busy = m.busy;
         } else if (m.type === 'miner') {
           v.busy = m.busy;
@@ -268,7 +291,11 @@ export class World {
         }
         return v;
       }),
-      packets: this.packets.map((p) => ({ id: p.id, item: p.item, prevCell: p.prevCell, cell: p.cell })),
+      packets: this.packets.map((p) => {
+        const [x, y] = this.posOf(p.cell, p.slot);
+        const [px, py] = this.posOf(p.prevCell, p.prevSlot);
+        return { id: p.id, item: p.item, x, y, px, py };
+      }),
       storage: { ...this.storage },
       power: { ...this.power },
       ore: [...this.ore],

@@ -20,6 +20,7 @@ import {
   PCFSoftShadowMap,
   PlaneGeometry,
   Raycaster,
+  RepeatWrapping,
   Scene,
   SphereGeometry,
   Sprite,
@@ -72,6 +73,8 @@ export class Renderer {
   private packetMap = new Map<number, Mesh>();
   private matCache = new Map<number, MeshStandardMaterial>();
   private disposables: (BufferGeometry | Material)[] = [];
+  private beltTex!: CanvasTexture;
+  private beltMat!: MeshStandardMaterial;
 
   private snap: Snapshot | null = null;
   private snapTime = 0;
@@ -95,6 +98,9 @@ export class Renderer {
 
     this.scene.background = new Color(0x0b1016);
     this.updateFrustum();
+
+    this.beltTex = this.makeBeltTexture();
+    this.beltMat = new MeshStandardMaterial({ map: this.beltTex, roughness: 0.7, metalness: 0.05 });
 
     this.scene.add(new AmbientLight(0x8a98ad, 0.75));
     this.scene.add(new HemisphereLight(0xbfe0ff, 0x16240f, 0.55));
@@ -237,6 +243,29 @@ export class Renderer {
     else mesh.rotation.x = -Math.PI / 2; // -Z (north)
   }
 
+  private makeBeltTexture(): CanvasTexture {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const x = c.getContext('2d')!;
+    x.fillStyle = '#283139';
+    x.fillRect(0, 0, 64, 64);
+    x.strokeStyle = '#56cbb8';
+    x.lineWidth = 7;
+    x.lineCap = 'round';
+    // chevrons pointing "up" (-V); the texture scrolls to animate the tread
+    for (let i = -1; i < 3; i++) {
+      const yy = i * 32;
+      x.beginPath();
+      x.moveTo(10, yy + 26);
+      x.lineTo(32, yy + 8);
+      x.lineTo(54, yy + 26);
+      x.stroke();
+    }
+    const t = new CanvasTexture(c);
+    t.wrapS = t.wrapT = RepeatWrapping;
+    return t;
+  }
+
   private makeLabel(text: string): Sprite {
     const c = document.createElement('canvas');
     c.width = 128;
@@ -259,13 +288,11 @@ export class Renderer {
     let body: Mesh | undefined;
 
     if (m.type === 'conveyor') {
-      const belt = new Mesh(new BoxGeometry(0.92, 0.08, 0.92), this.mat(0x2f3a47));
+      const belt = new Mesh(new BoxGeometry(0.92, 0.08, 0.92), this.beltMat);
       belt.position.y = 0.06;
+      belt.rotation.y = [Math.PI, -Math.PI / 2, 0, Math.PI / 2][m.dir];
       belt.receiveShadow = true;
-      const ar = new Mesh(new ConeGeometry(0.12, 0.34, 4), this.mat(0x6fe6d4));
-      this.orientArrow(ar, m.dir);
-      ar.position.y = 0.16;
-      g.add(belt, ar);
+      g.add(belt);
     } else {
       const def = DEFS[m.type];
       body = new Mesh(new BoxGeometry(0.84, MACH_H, 0.84), this.mat(def.color));
@@ -433,11 +460,9 @@ export class Renderer {
     for (const p of this.snap.packets) {
       const mesh = this.packetMap.get(p.id);
       if (!mesh) continue;
-      const a = this.cw(p.prevCell);
-      const b = this.cw(p.cell);
-      mesh.position.set(a.x + (b.x - a.x) * t, 0.28, a.z + (b.z - a.z) * t);
-      mesh.rotation.y += dt * 2;
+      mesh.position.set(p.px + (p.x - p.px) * t, 0.28, p.py + (p.y - p.py) * t);
     }
+    if (!this.snap.paused) this.beltTex.offset.y = (this.beltTex.offset.y - dt * 0.9 + 1) % 1;
 
     // busy machines pulse their emissive
     const pulse = 0.4 + 0.4 * Math.abs(Math.sin(now * 0.006));

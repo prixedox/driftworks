@@ -69,6 +69,8 @@ The renderer is a pure view of `Snapshot`s; it owns no game state.
 - Ore-gated mining (miners only work on ore); the factory runs autonomously while you explore.
 - **Save/load**: throttled autosave to localStorage + save-on-hide + auto-resume.
 - **Drag-to-build** connected belt lines (and drag-erase), rotation-aware tap picking via raycast.
+- **Continuous belts** (Factorio-style): items move sub-tile and pack densely against each other, with an animated tread surface.
+- **Inspect tool** (🔍): tap a machine for a live popup of its contents/status (smelter buffers & progress, storage totals, miner status).
 
 ## Not yet here (next steps)
 

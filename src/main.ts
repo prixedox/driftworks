@@ -16,6 +16,49 @@ function readSave(): SaveState | null {
   }
 }
 
+/** Build the inspector contents for the machine at `cell`, or null if empty. */
+function describe(cell: number, s: Snapshot): { title: string; rows: { label: string; value: string }[] } | null {
+  const m = s.modules.find((mm) => mm.cell === cell);
+  if (!m) return null;
+  const dirName = ['North', 'East', 'South', 'West'][m.dir];
+  switch (m.type) {
+    case 'storage':
+      return {
+        title: 'Storage (shared depot)',
+        rows: [
+          { label: 'Ore', value: String(s.storage.ore) },
+          { label: 'Plate', value: String(s.storage.plate) },
+        ],
+      };
+    case 'smelter':
+      return {
+        title: 'Smelter',
+        rows: [
+          { label: 'Ore waiting', value: String(m.buffer ?? 0) },
+          { label: 'Progress', value: `${Math.round((m.progress ?? 0) * 100)}%` },
+          { label: 'Plates ready', value: String(m.out ?? 0) },
+          { label: 'Status', value: m.busy ? 'smelting' : 'idle' },
+        ],
+      };
+    case 'miner': {
+      const onOre = s.ore.includes(cell);
+      return {
+        title: 'Miner',
+        rows: [
+          { label: 'On ore', value: onOre ? 'yes' : 'no' },
+          { label: 'Status', value: m.busy ? 'mining' : onOre ? 'idle (no power / belt full)' : 'no ore here' },
+          { label: 'Facing', value: dirName },
+        ],
+      };
+    }
+    case 'generator':
+      return { title: 'Generator', rows: [{ label: 'Power output', value: '+12' }] };
+    case 'conveyor':
+      return { title: 'Conveyor belt', rows: [{ label: 'Direction', value: dirName }] };
+  }
+  return null;
+}
+
 function writeSave(s: Snapshot, player: { x: number; y: number }): void {
   const save: SaveState = {
     version: 2,
@@ -40,10 +83,11 @@ async function main(): Promise<void> {
   const worker = new Worker(new URL('./sim/worker.ts', import.meta.url), { type: 'module' });
   const send = (c: Command) => worker.postMessage(c);
 
-  let tool: ModuleType | 'erase' = 'conveyor';
+  let tool: ModuleType | 'erase' | 'inspect' = 'conveyor';
   let dir: Dir = 1;
   let paused = false;
-  const SPEEDS = [1000, 600, 300, 120];
+  let inspectCell: number | null = null;
+  const SPEEDS = [300, 150, 80, 40]; // ms per tick (belts move 1 of 4 slots per tick)
   let speedIdx = 1;
 
   const hud = buildHud(root, {
@@ -67,6 +111,9 @@ async function main(): Promise<void> {
     toggleExplain: (on) => renderer.setExplain(on),
     move: (x, y) => renderer.setMove(x, y),
     rotateView: (d) => renderer.rotateView(d),
+    closeInspect: () => {
+      inspectCell = null;
+    },
     reset: () => {
       try {
         localStorage.removeItem(SAVE_KEY);
@@ -88,6 +135,7 @@ async function main(): Promise<void> {
     latest = snap;
     renderer.setSnapshot(snap);
     hud.setStats(snap);
+    if (inspectCell != null) refreshInspect();
     const now = Date.now();
     if (now - lastSaved > 3000) {
       lastSaved = now;
@@ -98,6 +146,17 @@ async function main(): Promise<void> {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && latest) writeSave(latest, renderer.getPlayer());
   });
+
+  const refreshInspect = () => {
+    if (inspectCell == null || !latest) return;
+    const info = describe(inspectCell, latest);
+    if (!info) {
+      inspectCell = null;
+      hud.hideInspect();
+      return;
+    }
+    hud.showInspect(info.title, info.rows);
+  };
 
   // Walk with WASD / arrow keys (desktop); the on-screen stick handles touch.
   const keys = new Set<string>();
@@ -157,12 +216,17 @@ async function main(): Promise<void> {
 
   const buildAt = (cell: number) => {
     if (tool === 'erase') send({ type: 'remove', cell });
-    else send({ type: 'place', cell, module: tool, dir });
+    else if (tool !== 'inspect') send({ type: 'place', cell, module: tool, dir });
   };
 
   canvas.addEventListener('pointerdown', (ev) => {
     const cell = cellAt(ev);
     if (cell < 0) return;
+    if (tool === 'inspect') {
+      inspectCell = cell;
+      refreshInspect();
+      return;
+    }
     dragging = true;
     lastCell = cell;
     buildAt(cell);

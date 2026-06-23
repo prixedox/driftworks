@@ -1,6 +1,11 @@
 import { DEFS, ITEM_COLOR, ITEM_LABEL, type Dir, type ItemType, type ModuleType, type Snapshot } from '../sim/types';
 
-type Tool = ModuleType | 'erase';
+type Tool = ModuleType | 'erase' | 'inspect';
+
+export interface InspectRow {
+  label: string;
+  value: string;
+}
 
 export interface HudCallbacks {
   selectTool: (t: Tool) => void;
@@ -10,6 +15,7 @@ export interface HudCallbacks {
   toggleExplain: (on: boolean) => void;
   move: (x: number, y: number) => void;
   rotateView: (d: number) => void;
+  closeInspect: () => void;
   reset: () => void;
 }
 
@@ -18,10 +24,12 @@ export interface Hud {
   setDir: (d: Dir) => void;
   setPaused: (p: boolean) => void;
   setSpeed: (ms: number) => void;
+  showInspect: (title: string, rows: InspectRow[]) => void;
+  hideInspect: () => void;
 }
 
 const DIR_GLYPH = ['↑', '→', '↓', '←'];
-const TOOLS: Tool[] = ['miner', 'conveyor', 'smelter', 'storage', 'generator', 'erase'];
+const TOOLS: Tool[] = ['miner', 'conveyor', 'smelter', 'storage', 'generator', 'erase', 'inspect'];
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 
 function el(tag: string, cls: string, text?: string): HTMLElement {
@@ -98,7 +106,7 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
   };
 
   for (const t of TOOLS) {
-    const label = t === 'erase' ? 'Erase' : DEFS[t].label;
+    const label = t === 'erase' ? 'Erase' : t === 'inspect' ? '🔍 Info' : DEFS[t].label;
     const btn = el('button', 'dw-btn', label);
     btn.addEventListener('click', () => {
       cb.selectTool(t);
@@ -131,18 +139,32 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
 
   bar.append(rotateBtn, viewBtn, pauseBtn, speedBtn, explainBtn, resetBtn);
 
-  const hint = el('div', 'dw-hint', 'Walk with WASD / arrows or the left stick. Tap a tile to build; drag belts. Put Miners on ore.');
+  const hint = el(
+    'div',
+    'dw-hint',
+    'Walk: WASD / stick · rotate view: Q / E · tap to build, drag belts · 🔍 Info to inspect. Miners go on ore.',
+  );
 
-  root.append(top, legend, hint, bar);
+  // Inspector popup (shows a machine's contents/status).
+  const inspect = el('div', 'dw-inspect');
+  const insTitle = el('div', 'dw-ins-title');
+  const insClose = el('button', 'dw-ins-close', '✕');
+  insClose.addEventListener('click', () => {
+    inspect.classList.remove('show');
+    cb.closeInspect();
+  });
+  const insHead = el('div', 'dw-ins-head');
+  insHead.append(insTitle, insClose);
+  const insBody = el('div', 'dw-ins-body');
+  inspect.append(insHead, insBody);
+
+  root.append(top, legend, hint, bar, inspect);
   buildJoystick(root, cb.move);
   setActive('conveyor');
 
   return {
     setStats(s) {
-      pulseEl.textContent = `● Pulse ${s.pulse}`;
-      pulseEl.classList.remove('beat');
-      void pulseEl.offsetWidth;
-      pulseEl.classList.add('beat');
+      pulseEl.textContent = `● ${s.pulse}`;
       powerEl.textContent = `⚡ ${s.power.used}/${s.power.produced}`;
       powerEl.classList.toggle('deficit', s.power.deficit);
       oreEl.textContent = `Ore ${s.storage.ore}`;
@@ -155,7 +177,20 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
       pauseBtn.textContent = p ? 'Resume' : 'Pause';
     },
     setSpeed(ms) {
-      speedBtn.textContent = `Speed ${(1000 / ms).toFixed(1)}×`;
+      speedBtn.textContent = `Speed ${(150 / ms).toFixed(1)}×`;
+    },
+    showInspect(title, rows) {
+      insTitle.textContent = title;
+      insBody.innerHTML = '';
+      for (const r of rows) {
+        const row = el('div', 'dw-ins-row');
+        row.append(el('span', 'dw-ins-k', r.label), el('span', 'dw-ins-v', r.value));
+        insBody.appendChild(row);
+      }
+      inspect.classList.add('show');
+    },
+    hideInspect() {
+      inspect.classList.remove('show');
     },
   };
 }
