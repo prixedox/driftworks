@@ -292,3 +292,25 @@ body {
   background: var(--accent);
   transition: width 0.15s ease;
 }
+
+/* Micro-animations */
+@keyframes dw-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.dw-statusbar {
+  animation: dw-rise 0.3s ease-out;
+}
+.dw-hotbar {
+  animation: dw-rise 0.3s ease-out;
+}
+.dw-inspect.show {
+  animation: dw-rise 0.18s ease-out;
+}
+@keyframes dw-tile-glow {
+  0%, 100% { box-shadow: 0 0 7px rgba(90, 209, 192, 0.35); }
+  50% { box-shadow: 0 0 15px rgba(90, 209, 192, 0.65); }
+}
+.dw-tile.active {
+  animation: dw-tile-glow 2s ease-in-out infinite;
+}
