@@ -234,3 +234,39 @@ body {
 .dw-ctrl.active {
   color: var(--accent);
 }
+
+.dw-toasts {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: center;
+  z-index: 14;
+  pointer-events: none;
+}
+.dw-toast {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font: 700 12px/1 system-ui, sans-serif;
+  box-shadow: var(--shadow);
+  animation: dw-toast-in 0.22s ease-out;
+}
+.dw-toast.warn {
+  color: var(--danger);
+  border-color: #5a2530;
+}
+.dw-toast.out {
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity 0.45s, transform 0.45s;
+}
+@keyframes dw-toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}

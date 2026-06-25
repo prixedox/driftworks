@@ -134,6 +134,8 @@ async function main(): Promise<void> {
 
   let latest: Snapshot | null = null;
   let lastSaved = 0;
+  let prevSnap: Snapshot | null = null;
+  let lastPlateToast = 0;
   worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
     if (e.data.type !== 'snapshot') return;
     const snap = e.data.snapshot;
@@ -147,6 +149,15 @@ async function main(): Promise<void> {
       lastSaved = now;
       writeSave(snap, renderer.getPlayer());
     }
+    if (prevSnap) {
+      const dPlate = snap.storage.plate - prevSnap.storage.plate;
+      if (dPlate > 0 && now - lastPlateToast > 1500) {
+        lastPlateToast = now;
+        hud.pushToast(`+${dPlate} plate`, 'info');
+      }
+      if (snap.power.deficit && !prevSnap.power.deficit) hud.pushToast('Low power', 'warn');
+    }
+    prevSnap = snap;
   };
 
   document.addEventListener('visibilitychange', () => {

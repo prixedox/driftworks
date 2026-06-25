@@ -3,6 +3,7 @@ import { buildStatusBar } from './statusbar';
 import { buildHotbar, type Tool } from './hotbar';
 import { buildInspector, type InspectRow } from './inspector';
 import { buildJoystick } from './joystick';
+import { buildToasts } from './toasts';
 
 export type { Tool, InspectRow };
 
@@ -24,6 +25,7 @@ export interface Hud {
   setSpeed: (ms: number) => void;
   showInspect: (title: string, rows: InspectRow[]) => void;
   hideInspect: () => void;
+  pushToast: (text: string, kind?: 'info' | 'warn') => void;
 }
 
 export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
@@ -43,6 +45,7 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
   hotbar.setActive('conveyor');
   const inspector = buildInspector(root, cb.closeInspect);
   buildJoystick(root, cb.move);
+  const toasts = buildToasts(root);
 
   const hint = document.createElement('div');
   hint.className = 'dw-hint';
@@ -56,5 +59,6 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
     setSpeed: (ms) => hotbar.setSpeed(ms),
     showInspect: (t, rows) => inspector.show(t, rows),
     hideInspect: () => inspector.hide(),
+    pushToast: (text, kind) => toasts.push(text, kind),
   };
 }
