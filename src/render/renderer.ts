@@ -436,7 +436,10 @@ export class Renderer {
     this.highlightSig = sig;
     for (const c of this.highlight.children.slice()) {
       this.highlight.remove(c);
-      if (c instanceof InstancedMesh) c.geometry.dispose();
+      if (c instanceof InstancedMesh) {
+        c.geometry.dispose();
+        (c.material as MeshStandardMaterial).dispose();
+      }
     }
     if (!cells.length) return;
     const geo = new BoxGeometry(0.9, 0.05, 0.9);

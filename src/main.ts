@@ -170,6 +170,7 @@ async function main(): Promise<void> {
     if (!info) {
       inspectCell = null;
       hud.hideInspect();
+      updateAffordances();
       return;
     }
     hud.showInspect(info.title, info.rows);
