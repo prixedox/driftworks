@@ -1,6 +1,10 @@
+import { svgEl } from './icons';
+
 export interface InspectRow {
   label: string;
   value: string;
+  bar?: number; // 0..1 -> renders a fill bar under the row
+  icon?: string; // icon key -> renders an icon before the label
 }
 export interface Inspector {
   show(title: string, rows: InspectRow[]): void;
@@ -36,12 +40,22 @@ export function buildInspector(root: HTMLElement, onClose: () => void): Inspecto
         row.className = 'dw-ins-row';
         const k = document.createElement('span');
         k.className = 'dw-ins-k';
-        k.textContent = r.label;
+        if (r.icon) k.append(svgEl(r.icon));
+        k.append(document.createTextNode(r.label));
         const v = document.createElement('span');
         v.className = 'dw-ins-v';
         v.textContent = r.value;
         row.append(k, v);
         body.append(row);
+        if (r.bar != null) {
+          const bar = document.createElement('div');
+          bar.className = 'dw-ins-bar';
+          const fill = document.createElement('div');
+          fill.className = 'dw-ins-bar-fill';
+          fill.style.width = `${Math.round(Math.min(1, Math.max(0, r.bar)) * 100)}%`;
+          bar.append(fill);
+          body.append(bar);
+        }
       }
       el.classList.add('show');
     },

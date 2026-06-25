@@ -19,7 +19,7 @@ function readSave(): SaveState | null {
 }
 
 /** Build the inspector contents for the machine at `cell`, or null if empty. */
-function describe(cell: number, s: Snapshot): { title: string; rows: { label: string; value: string }[] } | null {
+function describe(cell: number, s: Snapshot): { title: string; rows: { label: string; value: string; bar?: number; icon?: string }[] } | null {
   const m = s.modules.find((mm) => mm.cell === cell);
   if (!m) return null;
   const dirName = ['North', 'East', 'South', 'West'][m.dir];
@@ -28,8 +28,8 @@ function describe(cell: number, s: Snapshot): { title: string; rows: { label: st
       return {
         title: 'Storage (shared depot)',
         rows: [
-          { label: 'Ore', value: String(s.storage.ore) },
-          { label: 'Plate', value: String(s.storage.plate) },
+          { label: 'Ore', value: String(s.storage.ore), icon: 'ore' },
+          { label: 'Plate', value: String(s.storage.plate), icon: 'plate' },
         ],
       };
     case 'smelter':
@@ -37,7 +37,7 @@ function describe(cell: number, s: Snapshot): { title: string; rows: { label: st
         title: 'Smelter',
         rows: [
           { label: 'Ore waiting', value: String(m.buffer ?? 0) },
-          { label: 'Progress', value: `${Math.round((m.progress ?? 0) * 100)}%` },
+          { label: 'Progress', value: `${Math.round((m.progress ?? 0) * 100)}%`, bar: m.progress ?? 0 },
           { label: 'Plates ready', value: String(m.out ?? 0) },
           { label: 'Status', value: m.busy ? 'smelting' : 'idle' },
         ],
