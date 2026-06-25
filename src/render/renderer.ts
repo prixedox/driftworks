@@ -7,6 +7,7 @@ import {
   ConeGeometry,
   CylinderGeometry,
   DirectionalLight,
+  EdgesGeometry,
   Float32BufferAttribute,
   Group,
   HemisphereLight,
@@ -70,6 +71,9 @@ export class Renderer {
   private player3d = new Group();
 
   private ghost = new Mesh(new BoxGeometry(0.84, MACH_H, 0.84), new MeshStandardMaterial({ color: 0x5ad1c0, transparent: true, opacity: 0.4, depthWrite: false }));
+  private highlight = new Group();
+  private highlightSig = '';
+  private selected = new LineSegments(new EdgesGeometry(new BoxGeometry(0.92, MACH_H, 0.92)), new LineBasicMaterial({ color: 0x5ad1c0 }));
 
   private modMap = new Map<number, ModEntry>();
   private packetMap = new Map<number, Mesh>();
@@ -124,6 +128,9 @@ export class Renderer {
 
     this.ghost.visible = false;
     this.scene.add(this.ghost);
+    this.scene.add(this.highlight);
+    this.selected.visible = false;
+    this.scene.add(this.selected);
 
     window.addEventListener('resize', () => this.onResize());
     this.last = performance.now();
@@ -421,6 +428,38 @@ export class Renderer {
     this.ghost.position.set(p.x, MACH_H / 2 + 0.18, p.z);
     (this.ghost.material as MeshStandardMaterial).color.setHex(g.valid ? 0x5ad1c0 : 0xff6b6b);
     this.ghost.visible = true;
+  }
+
+  setHighlight(cells: number[]): void {
+    const sig = cells.join(',');
+    if (sig === this.highlightSig) return;
+    this.highlightSig = sig;
+    for (const c of this.highlight.children.slice()) {
+      this.highlight.remove(c);
+      if (c instanceof InstancedMesh) c.geometry.dispose();
+    }
+    if (!cells.length) return;
+    const geo = new BoxGeometry(0.9, 0.05, 0.9);
+    const mat = new MeshStandardMaterial({ color: 0x5ad1c0, transparent: true, opacity: 0.16, depthWrite: false });
+    const im = new InstancedMesh(geo, mat, cells.length);
+    const m = new Matrix4();
+    cells.forEach((cell, i) => {
+      const p = this.cw(cell);
+      m.makeTranslation(p.x, 0.17, p.z);
+      im.setMatrixAt(i, m);
+    });
+    im.instanceMatrix.needsUpdate = true;
+    this.highlight.add(im);
+  }
+
+  setSelected(cell: number | null): void {
+    if (cell == null) {
+      this.selected.visible = false;
+      return;
+    }
+    const p = this.cw(cell);
+    this.selected.position.set(p.x, MACH_H / 2, p.z);
+    this.selected.visible = true;
   }
 
   /** Snap the camera 90° (d = -1 left, +1 right). */

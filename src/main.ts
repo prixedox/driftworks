@@ -96,6 +96,7 @@ async function main(): Promise<void> {
     selectTool: (t) => {
       tool = t;
       if (t === 'inspect' || t === 'erase') renderer.setGhost(null);
+      updateAffordances();
     },
     rotate: () => {
       dir = ((dir + 1) % 4) as Dir;
@@ -116,6 +117,7 @@ async function main(): Promise<void> {
     rotateView: (d) => renderer.rotateView(d),
     closeInspect: () => {
       inspectCell = null;
+      updateAffordances();
     },
     reset: () => {
       try {
@@ -139,6 +141,7 @@ async function main(): Promise<void> {
     renderer.setSnapshot(snap);
     hud.setStats(snap);
     if (inspectCell != null) refreshInspect();
+    updateAffordances();
     const now = Date.now();
     if (now - lastSaved > 3000) {
       lastSaved = now;
@@ -230,12 +233,18 @@ async function main(): Promise<void> {
     renderer.setGhost({ cell, type: tool, dir, valid: placementValid(cell, tool, latest) });
   };
 
+  const updateAffordances = () => {
+    renderer.setHighlight(tool === 'miner' && latest ? latest.ore : []);
+    renderer.setSelected(inspectCell);
+  };
+
   canvas.addEventListener('pointerdown', (ev) => {
     const cell = cellAt(ev);
     if (cell < 0) return;
     if (tool === 'inspect') {
       inspectCell = cell;
       refreshInspect();
+      updateAffordances();
       return;
     }
     dragging = true;
