@@ -1,3 +1,4 @@
+import './ui/theme.css';
 import './style.css';
 import { Renderer } from './render/renderer';
 import { buildHud } from './ui/hud';

@@ -1,0 +1,48 @@
+:root {
+  --bg: #0b1016;
+  --panel: rgba(18, 24, 32, 0.82);
+  --panel-2: #141b24;
+  --border: #2b3645;
+  --accent: #5ad1c0;
+  --ore: #e8a35a;
+  --plate: #8fd0ff;
+  --danger: #ff6b6b;
+  --text: #d8e0ea;
+  --muted: #8aa0b6;
+  --r-sm: 8px;
+  --r-md: 12px;
+  --sp: 8px;
+  --shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+  --glow: 0 0 14px rgba(90, 209, 192, 0.55);
+}
+
+/* Glassy tech panel used across the HUD */
+.dw-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(6px);
+}
+
+.dw-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+.dw-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* HUD label convention */
+.dw-label {
+  font: 700 11px/1 ui-monospace, "SF Mono", monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.dw-num {
+  font-variant-numeric: tabular-nums;
+}
