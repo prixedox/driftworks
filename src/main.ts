@@ -2,6 +2,7 @@ import './ui/theme.css';
 import './style.css';
 import { Renderer } from './render/renderer';
 import { buildHud } from './ui/hud';
+import { placementValid } from './ui/placement';
 import type { Command, Dir, ModuleType, SaveState, Snapshot, WorkerMessage } from './sim/types';
 
 const SAVE_KEY = 'driftworks.save.v2';
@@ -94,6 +95,7 @@ async function main(): Promise<void> {
   const hud = buildHud(root, {
     selectTool: (t) => {
       tool = t;
+      if (t === 'inspect' || t === 'erase') renderer.setGhost(null);
     },
     rotate: () => {
       dir = ((dir + 1) % 4) as Dir;
@@ -220,6 +222,14 @@ async function main(): Promise<void> {
     else if (tool !== 'inspect') send({ type: 'place', cell, module: tool, dir });
   };
 
+  const updateGhost = (cell: number) => {
+    if (cell < 0 || tool === 'inspect' || tool === 'erase' || !latest) {
+      renderer.setGhost(null);
+      return;
+    }
+    renderer.setGhost({ cell, type: tool, dir, valid: placementValid(cell, tool, latest) });
+  };
+
   canvas.addEventListener('pointerdown', (ev) => {
     const cell = cellAt(ev);
     if (cell < 0) return;
@@ -231,34 +241,42 @@ async function main(): Promise<void> {
     dragging = true;
     lastCell = cell;
     buildAt(cell);
+    updateGhost(cell);
     canvas.setPointerCapture?.(ev.pointerId);
   });
 
   canvas.addEventListener('pointermove', (ev) => {
-    if (!dragging) return;
     const cell = cellAt(ev);
-    if (cell < 0 || cell === lastCell) return;
-    if (tool === 'conveyor') {
-      const d = renderer.adjacentDir(lastCell, cell);
-      if (d !== -1) {
-        send({ type: 'place', cell: lastCell, module: 'conveyor', dir: d });
-        send({ type: 'place', cell, module: 'conveyor', dir: d });
-      } else {
-        send({ type: 'place', cell, module: 'conveyor', dir });
-      }
-    } else {
-      buildAt(cell);
+    if (!dragging) {
+      if (ev.pointerType === 'mouse') updateGhost(cell);
+      return;
     }
-    lastCell = cell;
+    if (cell >= 0 && cell !== lastCell) {
+      if (tool === 'conveyor') {
+        const d = renderer.adjacentDir(lastCell, cell);
+        if (d !== -1) {
+          send({ type: 'place', cell: lastCell, module: 'conveyor', dir: d });
+          send({ type: 'place', cell, module: 'conveyor', dir: d });
+        } else {
+          send({ type: 'place', cell, module: 'conveyor', dir });
+        }
+      } else {
+        buildAt(cell);
+      }
+      lastCell = cell;
+    }
+    updateGhost(cell);
   });
 
   const endDrag = (ev: PointerEvent) => {
+    renderer.setGhost(null);
     dragging = false;
     lastCell = -1;
     canvas.releasePointerCapture?.(ev.pointerId);
   };
   canvas.addEventListener('pointerup', endDrag);
   canvas.addEventListener('pointercancel', endDrag);
+  canvas.addEventListener('pointerleave', () => renderer.setGhost(null));
 
   send({ type: 'speed', pulseMs: SPEEDS[speedIdx] });
   const saved = readSave();

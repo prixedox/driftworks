@@ -69,6 +69,8 @@ export class Renderer {
   private packetGroup = new Group();
   private player3d = new Group();
 
+  private ghost = new Mesh(new BoxGeometry(0.84, MACH_H, 0.84), new MeshStandardMaterial({ color: 0x5ad1c0, transparent: true, opacity: 0.4, depthWrite: false }));
+
   private modMap = new Map<number, ModEntry>();
   private packetMap = new Map<number, Mesh>();
   private matCache = new Map<number, MeshStandardMaterial>();
@@ -119,6 +121,9 @@ export class Renderer {
 
     this.buildPlayer();
     this.scene.add(this.worldGroup, this.moduleGroup, this.packetGroup, this.player3d);
+
+    this.ghost.visible = false;
+    this.scene.add(this.ghost);
 
     window.addEventListener('resize', () => this.onResize());
     this.last = performance.now();
@@ -405,6 +410,17 @@ export class Renderer {
   setPlayer(x: number, y: number): void {
     this.player.x = x;
     this.player.y = y;
+  }
+
+  setGhost(g: { cell: number; type: ModuleType; dir: Dir; valid: boolean } | null): void {
+    if (!g) {
+      this.ghost.visible = false;
+      return;
+    }
+    const p = this.cw(g.cell);
+    this.ghost.position.set(p.x, MACH_H / 2 + 0.18, p.z);
+    (this.ghost.material as MeshStandardMaterial).color.setHex(g.valid ? 0x5ad1c0 : 0xff6b6b);
+    this.ghost.visible = true;
   }
 
   /** Snap the camera 90° (d = -1 left, +1 right). */
