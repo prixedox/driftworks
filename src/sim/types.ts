@@ -1,7 +1,9 @@
 // Shared contract between the main thread (render/UI) and the sim worker.
 // Keep this file dependency-free so both sides can import it cheaply.
 
-export type ItemType = 'ore' | 'plate' | 'science';
+export type ItemType = 'ore' | 'plate' | 'science' | 'copper_ore' | 'copper_plate' | 'circuit';
+/** The type of resource in a deposit cell. */
+export type OreType = 'iron' | 'copper';
 export type ModuleType = 'miner' | 'conveyor' | 'smelter' | 'storage' | 'generator' | 'assembler' | 'lab';
 
 /** 0 = up, 1 = right, 2 = down, 3 = left. */
@@ -23,6 +25,8 @@ export interface ModuleView {
   buffer?: number;
   /** Finished items waiting to be emitted (smelter plate output). */
   out?: number;
+  /** Current recipe ID for recipe-selectable machines (smelter, assembler). */
+  recipe?: string;
 }
 
 export interface PacketView {
@@ -50,6 +54,8 @@ export interface Snapshot {
   power: { produced: number; used: number; deficit: boolean };
   /** Cells of the world that contain an ore deposit (miners only work on these). */
   ore: number[];
+  /** Parallel to `ore`; index i gives the OreType of ore[i]. */
+  oreType: OreType[];
   inventory: Record<ItemType, number>;
   unlocked: ModuleType[];
   research: { active: string | null; progress: number; completed: string[] };
@@ -76,7 +82,8 @@ export type Command =
   | { type: 'speed'; pulseMs: number }
   | { type: 'collect' }
   | { type: 'research'; action: 'select'; tech: string }
-  | { type: 'research'; action: 'contribute' };
+  | { type: 'research'; action: 'contribute' }
+  | { type: 'select-recipe'; cell: number; recipe: string };
 
 /** Messages: worker -> main thread. */
 export type WorkerMessage = { type: 'snapshot'; snapshot: Snapshot };
@@ -101,12 +108,18 @@ export const ITEM_COLOR: Record<ItemType, number> = {
   ore: 0xe8a35a,
   plate: 0x8fd0ff,
   science: 0xc55cff,
+  copper_ore: 0xe07840,
+  copper_plate: 0xf09030,
+  circuit: 0x44cc66,
 };
 
 export const ITEM_LABEL: Record<ItemType, string> = {
   ore: 'Ore',
   plate: 'Plate',
   science: 'Science',
+  copper_ore: 'Copper Ore',
+  copper_plate: 'Copper Plate',
+  circuit: 'Circuit',
 };
 
 /** Short plain-language caption shown under each machine in "Explain" mode. */
