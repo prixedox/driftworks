@@ -16,7 +16,10 @@ first Horizon-2 step). Each plan is self-contained and formatted for execution v
 | 6 | `2026-06-25-settings-and-graphics-quality.md` | Settings panel + graphics-quality tiers (bloom/shadows/particles) | `render/renderer.ts`, `render/effects.ts`, `main.ts`, `ui/hud.ts`, `ui/hotbar.ts`, new `settings.ts` |
 | 7 | `2026-06-25-onboarding-tutorial.md` | First-run tutorial + current-objective chip | `ui/*` (new `tutorial.ts`), `ui/hud.ts`, `main.ts`, CSS (**no sim**) |
 
-(Already executed, for reference: `2026-06-25-ui-ux-redesign.md`, `2026-06-25-economy-research.md`.)
+**Status:** #1 (CI/determinism), #2 (save v3), #3 (copper/circuits/recipes) are **shipped** (built in
+parallel worktrees, merged to `main` in order #1→#2→#3, live). #4–#7 remain to do.
+
+(Earlier, for reference: `2026-06-25-ui-ux-redesign.md`, `2026-06-25-economy-research.md`.)
 
 ## Conflict map (why you can't naively run all 7 at once)
 

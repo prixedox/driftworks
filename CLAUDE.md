@@ -31,8 +31,10 @@ Sim ⇄ main talk only through `Command` / `Snapshot` (defined in `src/sim/types
 - `npm run preview` — serve the built `dist/`.
 
 ## Tests & verification
-- Unit tests live in `tests/*.test.ts`, run via `npx tsx tests/<file>.test.ts` (plain asserts + `process.exit`). **Not** wired into `npm run build`/CI — run them manually.
-- Visual checks: headless `google-chrome` driven by `playwright-core` (scripts in the session scratchpad). `chromium-cli` is NOT installed.
+- `npm test` runs every `tests/*.test.ts` suite (determinism, economy, placement, recipes, research, save) via `tsx`. Single suite: `npx tsx tests/<file>.test.ts`.
+- **CI gates deploy:** `.github/workflows/deploy.yml` has a `ci` job (`npm ci && npm run build && npm test`); `build`/`deploy` `needs: ci`, so a red test blocks the live push.
+- `tests/determinism.test.ts` asserts a baked **golden snapshot hash**. It deliberately breaks whenever `sim/` logic or the `Snapshot` shape changes — `npm test` prints `got <hash>`; re-baseline it as part of that change.
+- Visual checks: headless `google-chrome`/`playwright` (Playwright MCP, or scripts in the session scratchpad).
 
 ## Deploy
 Push to `main` → GitHub Actions (`.github/workflows/deploy.yml`) builds and publishes to Pages. `vite.config.ts` uses `base: './'` so it works under the `/driftworks/` subpath. After a push, the CDN can lag ~1–2 min; confirm the live `index-*.js` hash matches the local `dist/` hash.
@@ -44,5 +46,6 @@ Push to `main` → GitHub Actions (`.github/workflows/deploy.yml`) builds and pu
 - `GDD.md` — the game design doc (high level; may lag the code).
 
 ## Known backlog
-- **Save/load (`SaveState` v2) does NOT persist inventory / research / unlocks** — they reset on reload; needs a format bump (v3). Biggest gap.
-- Lab draws no power; science buffers silently if no science-tech is active; `EXPLAIN` map is dead; some duplicate CSS; tests not in CI.
+- Lab draws no power; science buffers silently if no science-tech is active; `EXPLAIN` map is dead; some duplicate CSS.
+- Ready-to-run feature plans #4–#7 (build UX, stats/minimap, settings/graphics, onboarding) are written but unbuilt — see `docs/superpowers/plans/PLAN-INDEX.md`.
+- **Shipped:** save v3 (persists inventory/research/unlocks/upgrades) · copper/circuits + `RECIPES` (recipe-select machines) · CI test gating + determinism harness.
