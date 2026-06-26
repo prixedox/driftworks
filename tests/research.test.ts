@@ -25,6 +25,8 @@ const w3 = new World();
 w3.loadDemo();
 ['smelting', 'power', 'automation', 'power_grid'].forEach((id) => { w3.inventory.ore = 999; w3.inventory.plate = 999; w3.inventory.science = 999; w3.selectResearch(id); w3.contributeResearch(); });
 ok(w3.research.completed.has('power_grid'), 'power_grid completes via science from inventory');
+w3.advance();
+ok(w3.snapshot(150, false).power.produced === 18, `power_grid raises generator output to 18 (got ${w3.snapshot(150, false).power.produced})`);
 
 // Determinism with the new systems.
 const a = new World(); a.loadDemo();

@@ -9,9 +9,10 @@ export const GRID_W = 40;
 export const GRID_H = 26;
 
 const SLOTS = 4; // sub-tile positions per belt cell (items move 1 slot/tick)
-const MINER_PERIOD = 1; // cooldown ticks after emitting -> an item roughly every 2 ticks
+const MINER_PERIOD = 2; // cooldown ticks after emitting -> an item every 3 ticks; the miner_speed upgrade brings it to every 2
 const SMELT_TIME = 6; // ticks to turn one ore into one plate
 const SMELT_CAP = 4; // ore the smelter can hold
+const LAB_CAP = 6; // max science flasks buffered in a lab
 const MINER_POWER = 2;
 const SMELT_POWER = 3;
 const GEN_POWER = 12;
@@ -98,6 +99,7 @@ export class World {
   }
 
   selectResearch(id: string): void {
+    if (this.research.active === id) return;
     const tech = TECHS.find((t) => t.id === id);
     if (!tech || this.research.completed.has(id)) return;
     if (!tech.prereqs.every((p) => this.research.completed.has(p))) return;
@@ -248,7 +250,7 @@ export class World {
               moved = true;
             }
           } else if (tmod.type === 'lab') {
-            if (p.item === 'science' && tmod.inBuf < 6) {
+            if (p.item === 'science' && tmod.inBuf < LAB_CAP) {
               tmod.inBuf++;
               removed.add(p.id);
               occ.delete(here);
@@ -266,7 +268,7 @@ export class World {
     if (removed.size) this.packets = this.packets.filter((p) => !removed.has(p.id));
 
     // Upgrade-aware rate locals.
-    const minerPeriod = this.upgrades.has('miner_speed') ? 0 : MINER_PERIOD;
+    const minerPeriod = this.upgrades.has('miner_speed') ? 1 : MINER_PERIOD;
     const genPower = this.upgrades.has('gen_output') ? Math.round(GEN_POWER * 1.5) : GEN_POWER;
     const smeltTime = this.upgrades.has('smelter_speed') ? Math.max(1, Math.round(SMELT_TIME / 1.5)) : SMELT_TIME;
 
@@ -364,6 +366,7 @@ export class World {
   }
 
   snapshot(pulseMs: number, paused: boolean): Snapshot {
+    const smeltTime = this.upgrades.has('smelter_speed') ? Math.max(1, Math.round(SMELT_TIME / 1.5)) : SMELT_TIME;
     return {
       w: this.w,
       h: this.h,
@@ -373,7 +376,7 @@ export class World {
       modules: [...this.modules.entries()].map(([cell, m]) => {
         const v: ModuleView = { cell, type: m.type, dir: m.dir };
         if (m.type === 'smelter') {
-          v.progress = m.progress / SMELT_TIME;
+          v.progress = m.progress / smeltTime;
           v.buffer = m.inBuf;
           v.out = m.outBuf;
           v.busy = m.busy;
