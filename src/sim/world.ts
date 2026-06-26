@@ -1,4 +1,5 @@
 import { DX, DY, type Dir, type ItemType, type ModuleType, type ModuleView, type SaveState, type Snapshot } from './types';
+import { BUILD_COSTS, START_INVENTORY, START_UNLOCKED } from './data';
 
 // Deterministic, integer-only, tick-based simulation. Belts use sub-tile
 // "slots" so items flow continuously and pack densely against each other
@@ -55,6 +56,8 @@ export class World {
   pulse = 0;
   storage: Record<ItemType, number> = { ore: 0, plate: 0 };
   power = { produced: 0, used: 0, deficit: false };
+  inventory: Record<ItemType, number> = { ...START_INVENTORY };
+  unlocked = new Set<ModuleType>(START_UNLOCKED);
 
   cell(x: number, y: number): number {
     return y * this.w + x;
@@ -67,8 +70,24 @@ export class World {
     return y * this.w + x;
   }
 
-  place(c: number, type: ModuleType, dir: Dir): void {
+  private placeRaw(c: number, type: ModuleType, dir: Dir): void {
     this.modules.set(c, { type, dir, cooldown: 0, inBuf: 0, progress: 0, outBuf: 0, busy: false });
+  }
+
+  place(c: number, type: ModuleType, dir: Dir): boolean {
+    if (!this.unlocked.has(type)) return false;
+    const cost = BUILD_COSTS[type];
+    if ((this.inventory[cost.item] ?? 0) < cost.amount) return false;
+    this.inventory[cost.item] -= cost.amount;
+    this.placeRaw(c, type, dir);
+    return true;
+  }
+
+  collect(): void {
+    (Object.keys(this.storage) as ItemType[]).forEach((k) => {
+      this.inventory[k] = (this.inventory[k] ?? 0) + this.storage[k];
+      this.storage[k] = 0;
+    });
   }
 
   remove(c: number): void {
@@ -106,15 +125,17 @@ export class World {
     this.power = { produced: 0, used: 0, deficit: false };
     this.pulse = 0;
     this.nextId = 1;
+    this.inventory = { ...START_INVENTORY };
+    this.unlocked = new Set(START_UNLOCKED);
     const y = 13;
-    this.place(this.cell(20, 11), 'generator', 1);
-    this.place(this.cell(20, y), 'miner', 1);
-    this.place(this.cell(21, y), 'conveyor', 1);
-    this.place(this.cell(22, y), 'conveyor', 1);
-    this.place(this.cell(23, y), 'smelter', 1);
-    this.place(this.cell(24, y), 'conveyor', 1);
-    this.place(this.cell(25, y), 'conveyor', 1);
-    this.place(this.cell(26, y), 'storage', 1);
+    this.placeRaw(this.cell(20, 11), 'generator', 1);
+    this.placeRaw(this.cell(20, y), 'miner', 1);
+    this.placeRaw(this.cell(21, y), 'conveyor', 1);
+    this.placeRaw(this.cell(22, y), 'conveyor', 1);
+    this.placeRaw(this.cell(23, y), 'smelter', 1);
+    this.placeRaw(this.cell(24, y), 'conveyor', 1);
+    this.placeRaw(this.cell(25, y), 'conveyor', 1);
+    this.placeRaw(this.cell(26, y), 'storage', 1);
   }
 
   loadSave(s: SaveState): void {
@@ -123,7 +144,9 @@ export class World {
     this.storage = { ore: s.storage.ore ?? 0, plate: s.storage.plate ?? 0 };
     this.pulse = s.pulse ?? 0;
     this.power = { produced: 0, used: 0, deficit: false };
-    for (const m of s.modules) this.place(m.cell, m.type, m.dir);
+    this.inventory = { ...START_INVENTORY };
+    this.unlocked = new Set(START_UNLOCKED);
+    for (const m of s.modules) this.placeRaw(m.cell, m.type, m.dir);
   }
 
   private microKey(cell: number, slot: number): number {
@@ -302,6 +325,8 @@ export class World {
       storage: { ...this.storage },
       power: { ...this.power },
       ore: [...this.ore],
+      inventory: { ...this.inventory },
+      unlocked: [...this.unlocked],
     };
   }
 }

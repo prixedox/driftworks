@@ -66,6 +66,10 @@ ctx.onmessage = (e: MessageEvent<Command>) => {
       paused = cmd.paused;
       post();
       break;
+    case 'collect':
+      world.collect();
+      post();
+      break;
     case 'speed':
       pulseMs = cmd.pulseMs;
       break;
