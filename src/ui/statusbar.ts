@@ -33,8 +33,8 @@ export function buildStatusBar(root: HTMLElement): StatusBar {
       powerFill.style.width = `${Math.min(100, (s.power.used / prod) * 100)}%`;
       powerFill.classList.toggle('deficit', s.power.deficit);
       powerNum.textContent = `${s.power.used}/${s.power.produced}`;
-      ore.value.textContent = String(s.storage.ore);
-      plate.value.textContent = String(s.storage.plate);
+      ore.value.textContent = String(s.inventory.ore ?? 0);
+      plate.value.textContent = String(s.inventory.plate ?? 0);
     },
   };
 

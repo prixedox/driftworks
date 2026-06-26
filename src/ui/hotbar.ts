@@ -1,5 +1,6 @@
 import { DEFS, type Dir, type ModuleType } from '../sim/types';
 import { svgEl } from './icons';
+import { BUILD_COSTS } from '../sim/data';
 
 export type Tool = ModuleType | 'erase' | 'inspect';
 
@@ -43,6 +44,12 @@ export function buildHotbar(root: HTMLElement, cb: HotbarCallbacks): Hotbar {
     key.className = 'dw-key';
     key.textContent = String(i + 1);
     b.append(key);
+    if (t !== 'erase' && t !== 'inspect') {
+      const cost = document.createElement('span');
+      cost.className = 'dw-cost';
+      cost.textContent = String(BUILD_COSTS[t].amount);
+      b.append(cost);
+    }
     b.addEventListener('click', () => cb.selectTool(t));
     tileMap.set(t, b);
     tiles.append(b);

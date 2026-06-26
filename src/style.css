@@ -314,3 +314,10 @@ body {
 .dw-tile.active {
   animation: dw-tile-glow 2s ease-in-out infinite;
 }
+.dw-cost {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font: 700 9px/1 ui-monospace, monospace;
+  color: var(--ore);
+}
