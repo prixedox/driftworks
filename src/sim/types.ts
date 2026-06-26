@@ -50,6 +50,8 @@ export interface Snapshot {
   power: { produced: number; used: number; deficit: boolean };
   /** Cells of the world that contain an ore deposit (miners only work on these). */
   ore: number[];
+  inventory: Record<ItemType, number>;
+  unlocked: ModuleType[];
 }
 
 /** Persistent save (written by the main thread; workers can't use localStorage). */
@@ -70,7 +72,8 @@ export type Command =
   | { type: 'place'; cell: number; module: ModuleType; dir: Dir }
   | { type: 'remove'; cell: number }
   | { type: 'pause'; paused: boolean }
-  | { type: 'speed'; pulseMs: number };
+  | { type: 'speed'; pulseMs: number }
+  | { type: 'collect' };
 
 /** Messages: worker -> main thread. */
 export type WorkerMessage = { type: 'snapshot'; snapshot: Snapshot };
