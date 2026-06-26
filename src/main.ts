@@ -136,6 +136,7 @@ async function main(): Promise<void> {
   let lastSaved = 0;
   let prevSnap: Snapshot | null = null;
   let lastPlateToast = 0;
+  let lastCollect = 0;
   worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
     if (e.data.type !== 'snapshot') return;
     const snap = e.data.snapshot;
@@ -144,6 +145,18 @@ async function main(): Promise<void> {
     hud.setStats(snap);
     if (inspectCell != null) refreshInspect();
     updateAffordances();
+    const pl = renderer.getPlayer();
+    const near = snap.modules.some((m) => {
+      if (m.type !== 'storage') return false;
+      const mx = (m.cell % snap.w) + 0.5;
+      const my = Math.floor(m.cell / snap.w) + 0.5;
+      return Math.hypot(pl.x - mx, pl.y - my) < 1.6;
+    });
+    const tnow = Date.now();
+    if (near && tnow - lastCollect > 400) {
+      lastCollect = tnow;
+      send({ type: 'collect' });
+    }
     const now = Date.now();
     if (now - lastSaved > 3000) {
       lastSaved = now;
