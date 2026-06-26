@@ -1,4 +1,4 @@
-import type { ItemType, ModuleType } from './types';
+import type { ItemType, ModuleType, UpgradeId } from './types';
 export type { UpgradeId } from './types';
 
 export interface BuildCost {

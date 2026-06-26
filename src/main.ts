@@ -4,15 +4,48 @@ import { Renderer } from './render/renderer';
 import { buildHud } from './ui/hud';
 import { placementValid } from './ui/placement';
 import type { Command, Dir, ModuleType, SaveState, Snapshot, WorkerMessage } from './sim/types';
+import { START_INVENTORY, START_UNLOCKED } from './sim/data';
 
-const SAVE_KEY = 'driftworks.save.v2';
+const SAVE_KEY = 'driftworks.save.v3';
+const V2_SAVE_KEY = 'driftworks.save.v2';
+
+/** Promote a v2 save to v3, filling in sensible defaults for new fields. */
+function migrateToV3(raw: unknown): SaveState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const s = raw as Record<string, unknown>;
+  if (s['version'] !== 2 || !Array.isArray(s['modules'])) return null;
+  return {
+    version: 3,
+    modules: s['modules'] as SaveState['modules'],
+    storage: (s['storage'] as SaveState['storage']) ?? { ore: 0, plate: 0, science: 0 },
+    pulse: typeof s['pulse'] === 'number' ? s['pulse'] : 0,
+    player: s['player'] as SaveState['player'],
+    inventory: { ...START_INVENTORY },
+    unlocked: [...START_UNLOCKED],
+    research: { active: null, progress: 0, completed: [] },
+    upgrades: [],
+  };
+}
 
 function readSave(): SaveState | null {
   try {
-    const raw = localStorage.getItem(SAVE_KEY);
-    if (!raw) return null;
-    const s = JSON.parse(raw) as SaveState;
-    return s && s.version === 2 && Array.isArray(s.modules) ? s : null;
+    // Try v3 first.
+    const rawV3 = localStorage.getItem(SAVE_KEY);
+    if (rawV3) {
+      const s = JSON.parse(rawV3) as SaveState;
+      if (s && s.version === 3 && Array.isArray(s.modules)) return s;
+    }
+    // Fall back to v2 and migrate.
+    const rawV2 = localStorage.getItem(V2_SAVE_KEY);
+    if (rawV2) {
+      const migrated = migrateToV3(JSON.parse(rawV2));
+      if (migrated) {
+        // Persist under the new key immediately so next load is native v3.
+        try { localStorage.setItem(SAVE_KEY, JSON.stringify(migrated)); } catch { /* ignore */ }
+        return migrated;
+      }
+    }
+    return null;
   } catch {
     return null;
   }
@@ -85,11 +118,15 @@ function describe(cell: number, s: Snapshot): { title: string; rows: { label: st
 
 function writeSave(s: Snapshot, player: { x: number; y: number }): void {
   const save: SaveState = {
-    version: 2,
+    version: 3,
     modules: s.modules.map((m) => ({ cell: m.cell, type: m.type, dir: m.dir })),
     storage: s.storage,
     pulse: s.pulse,
     player,
+    inventory: s.inventory,
+    unlocked: s.unlocked,
+    research: s.research,
+    upgrades: s.upgrades,
   };
   try {
     localStorage.setItem(SAVE_KEY, JSON.stringify(save));
@@ -147,6 +184,7 @@ async function main(): Promise<void> {
     reset: () => {
       try {
         localStorage.removeItem(SAVE_KEY);
+        localStorage.removeItem(V2_SAVE_KEY);
       } catch {
         /* ignore */
       }

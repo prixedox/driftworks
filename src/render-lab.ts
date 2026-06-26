@@ -87,6 +87,7 @@ const snap: Snapshot = {
   inventory: { ore: 0, plate: 0, science: 0 },
   unlocked: ['miner', 'conveyor', 'smelter', 'storage', 'generator', 'assembler', 'lab'],
   research: { active: null, progress: 0, completed: [] },
+  upgrades: [],
 };
 
 // --- scene -------------------------------------------------------------------
