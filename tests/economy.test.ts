@@ -13,7 +13,9 @@ const empty = w.cell(2, 2);
 ok(w.place(empty, 'miner', 1) === true, 'place miner returns true');
 ok(w.inventory.ore === 35, `miner cost 5 ore (got ${w.inventory.ore})`);
 
-// can't afford: drain ore, then placing fails and does not deduct below 0
+// can't afford: drain ore, then placing fails and does not deduct below 0.
+// Unlock smelter first so this isolates the affordability path (not the unlock path).
+w.unlocked.add('smelter');
 w.inventory.ore = 0;
 ok(w.place(w.cell(3, 3), 'smelter', 1) === false, 'cannot place when unaffordable');
 ok(w.inventory.ore === 0, 'no deduction on failed place');

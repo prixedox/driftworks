@@ -1,5 +1,5 @@
-import { DX, DY, type Dir, type ItemType, type ModuleType, type ModuleView, type SaveState, type Snapshot } from './types';
-import { BUILD_COSTS, START_INVENTORY, START_UNLOCKED, TECHS, type UpgradeId } from './data';
+import { DX, DY, type Dir, type ItemType, type ModuleType, type OreType, type ModuleView, type SaveState, type Snapshot } from './types';
+import { BUILD_COSTS, START_INVENTORY, START_UNLOCKED, TECHS, RECIPES, type Recipe, type RecipeId, type UpgradeId } from './data';
 
 // Deterministic, integer-only, tick-based simulation. Belts use sub-tile
 // "slots" so items flow continuously and pack densely against each other
@@ -10,17 +10,19 @@ export const GRID_H = 26;
 
 const SLOTS = 4; // sub-tile positions per belt cell (items move 1 slot/tick)
 const MINER_PERIOD = 2; // cooldown ticks after emitting -> an item every 3 ticks; the miner_speed upgrade brings it to every 2
-const SMELT_TIME = 6; // ticks to turn one ore into one plate
-const SMELT_CAP = 4; // ore the smelter can hold
+const SMELT_TIME = 6; // ticks to turn one ore into one plate (smelt_iron default; scaled by smelter_speed upgrade)
 const LAB_CAP = 6; // max science flasks buffered in a lab
 const MINER_POWER = 2;
-const SMELT_POWER = 3;
 const GEN_POWER = 12;
 
-const CONVERTERS: Partial<Record<ModuleType, { in: ItemType; out: ItemType; time: number; cap: number; power: number }>> = {
-  smelter: { in: 'ore', out: 'plate', time: SMELT_TIME, cap: SMELT_CAP, power: SMELT_POWER },
-  assembler: { in: 'plate', out: 'science', time: 8, cap: 4, power: 3 },
-};
+function getRecipe(id: RecipeId | string): Recipe | undefined {
+  return RECIPES.find((r) => r.id === id);
+}
+
+/** Default recipe ID for a machine type (first matching recipe). */
+function defaultRecipe(type: ModuleType): RecipeId | undefined {
+  return RECIPES.find((r) => r.machines.includes(type))?.id;
+}
 
 function mulberry32(seed: number): () => number {
   let a = seed;
@@ -37,10 +39,13 @@ interface ModuleInst {
   type: ModuleType;
   dir: Dir;
   cooldown: number;
-  inBuf: number;
+  /** Input buffer: map from ItemType to integer count. Single-input recipes have one key. */
+  inBuf: Map<ItemType, number>;
   progress: number;
   outBuf: number;
   busy: boolean;
+  /** Active recipe for recipe-selectable machines. Undefined for non-recipe machines. */
+  recipeId?: RecipeId;
 }
 
 interface Packet {
@@ -56,14 +61,14 @@ export class World {
   readonly w = GRID_W;
   readonly h = GRID_H;
   modules = new Map<number, ModuleInst>();
-  ore = new Set<number>();
+  ore = new Map<number, OreType>();
   packets: Packet[] = [];
   private nextId = 1;
   pulse = 0;
-  storage: Record<ItemType, number> = { ore: 0, plate: 0, science: 0 };
+  storage: Record<ItemType, number> = { ore: 0, plate: 0, science: 0, copper_ore: 0, copper_plate: 0, circuit: 0 };
   power = { produced: 0, used: 0, deficit: false };
   inventory: Record<ItemType, number> = { ...START_INVENTORY };
-  unlocked = new Set<ModuleType>(START_UNLOCKED);
+  unlocked = new Set<string>(START_UNLOCKED);
   research: { active: string | null; progress: number; completed: Set<string> } = { active: null, progress: 0, completed: new Set() };
   upgrades = new Set<UpgradeId>();
 
@@ -79,7 +84,22 @@ export class World {
   }
 
   private placeRaw(c: number, type: ModuleType, dir: Dir): void {
-    this.modules.set(c, { type, dir, cooldown: 0, inBuf: 0, progress: 0, outBuf: 0, busy: false });
+    const recipeId = defaultRecipe(type);
+    this.modules.set(c, {
+      type,
+      dir,
+      cooldown: 0,
+      inBuf: new Map<ItemType, number>(),
+      progress: 0,
+      outBuf: 0,
+      busy: false,
+      recipeId,
+    });
+  }
+
+  /** Public seam for tests. */
+  placeRawPublic(c: number, type: ModuleType, dir: Dir): void {
+    this.placeRaw(c, type, dir);
   }
 
   place(c: number, type: ModuleType, dir: Dir): boolean {
@@ -119,6 +139,21 @@ export class World {
     if (this.research.progress >= tech.cost) this.completeResearch(tech.id);
   }
 
+  selectRecipe(cell: number, recipeId: string): boolean {
+    const m = this.modules.get(cell);
+    if (!m) return false;
+    const recipe = getRecipe(recipeId);
+    if (!recipe) return false;
+    if (!recipe.machines.includes(m.type)) return false;
+    if (!this.unlocked.has(recipeId)) return false;
+    // Clear input buffer on recipe switch to avoid cross-recipe contamination.
+    m.inBuf.clear();
+    m.progress = 0;
+    m.outBuf = 0;
+    m.recipeId = recipe.id;
+    return true;
+  }
+
   private completeResearch(id: string): void {
     const tech = TECHS.find((t) => t.id === id)!;
     this.research.completed.add(id);
@@ -133,13 +168,13 @@ export class World {
     this.packets = this.packets.filter((p) => p.cell !== c);
   }
 
-  private addOreBlob(cx: number, cy: number, r: number): void {
+  private addOreBlob(cx: number, cy: number, r: number, kind: OreType): void {
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (dx * dx + dy * dy > r * r + 1) continue;
         const x = cx + dx;
         const y = cy + dy;
-        if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.ore.add(this.cell(x, y));
+        if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.ore.set(this.cell(x, y), kind);
       }
     }
   }
@@ -148,23 +183,25 @@ export class World {
     this.ore.clear();
     this.modules.clear();
     this.packets = [];
-    this.addOreBlob(20, 13, 3);
+    this.addOreBlob(20, 13, 3, 'iron');
     const rng = mulberry32(1337);
     for (let i = 0; i < 7; i++) {
       const x = 4 + Math.floor(rng() * (this.w - 8));
       const y = 4 + Math.floor(rng() * (this.h - 8));
-      this.addOreBlob(x, y, 2 + Math.floor(rng() * 3));
+      const r = 2 + Math.floor(rng() * 3);
+      const kind: OreType = i < 5 ? 'iron' : 'copper';
+      this.addOreBlob(x, y, r, kind);
     }
   }
 
   loadDemo(): void {
     this.genWorld();
-    this.storage = { ore: 0, plate: 0, science: 0 };
+    this.storage = { ore: 0, plate: 0, science: 0, copper_ore: 0, copper_plate: 0, circuit: 0 };
     this.power = { produced: 0, used: 0, deficit: false };
     this.pulse = 0;
     this.nextId = 1;
     this.inventory = { ...START_INVENTORY };
-    this.unlocked = new Set(START_UNLOCKED);
+    this.unlocked = new Set<string>(START_UNLOCKED);
     this.research = { active: null, progress: 0, completed: new Set() };
     this.upgrades = new Set();
     const y = 13;
@@ -181,11 +218,14 @@ export class World {
   loadSave(s: SaveState): void {
     this.genWorld();
     this.nextId = 1;
-    this.storage = { ore: s.storage.ore ?? 0, plate: s.storage.plate ?? 0, science: 0 };
+    this.storage = {
+      ore: s.storage.ore ?? 0, plate: s.storage.plate ?? 0, science: 0,
+      copper_ore: 0, copper_plate: 0, circuit: 0,
+    };
     this.pulse = s.pulse ?? 0;
     this.power = { produced: 0, used: 0, deficit: false };
     this.inventory = { ...START_INVENTORY };
-    this.unlocked = new Set(START_UNLOCKED);
+    this.unlocked = new Set<string>(START_UNLOCKED);
     this.research = { active: null, progress: 0, completed: new Set() };
     this.upgrades = new Set();
     for (const m of s.modules) this.placeRaw(m.cell, m.type, m.dir);
@@ -241,17 +281,23 @@ export class World {
               movedThisTick.add(p.id);
               moved = true;
             }
-          } else if (CONVERTERS[tmod.type]) {
-            const cfg = CONVERTERS[tmod.type]!;
-            if (p.item === cfg.in && tmod.inBuf < cfg.cap) {
-              tmod.inBuf++;
-              removed.add(p.id);
-              occ.delete(here);
-              moved = true;
+          } else if (tmod.recipeId) {
+            const recipe = getRecipe(tmod.recipeId);
+            if (recipe) {
+              const inputSlot = recipe.inputs.find((inp) => inp.item === p.item);
+              if (inputSlot) {
+                const current = tmod.inBuf.get(p.item) ?? 0;
+                if (current < recipe.bufCap) {
+                  tmod.inBuf.set(p.item, current + 1);
+                  removed.add(p.id);
+                  occ.delete(here);
+                  moved = true;
+                }
+              }
             }
           } else if (tmod.type === 'lab') {
-            if (p.item === 'science' && tmod.inBuf < LAB_CAP) {
-              tmod.inBuf++;
+            if (p.item === 'science' && (tmod.inBuf.get('science') ?? 0) < LAB_CAP) {
+              tmod.inBuf.set('science', (tmod.inBuf.get('science') ?? 0) + 1);
               removed.add(p.id);
               occ.delete(here);
               moved = true;
@@ -290,11 +336,15 @@ export class World {
           wants = true;
           draw = MINER_POWER;
         }
-      } else if (CONVERTERS[m.type]) {
-        const cfgTime = m.type === 'smelter' ? smeltTime : CONVERTERS[m.type]!.time;
-        if (m.inBuf > 0 && m.progress < cfgTime) {
-          wants = true;
-          draw = CONVERTERS[m.type]!.power;
+      } else if (m.recipeId) {
+        const recipe = getRecipe(m.recipeId);
+        if (recipe) {
+          const effectiveTime = m.recipeId === 'smelt_iron' ? smeltTime : recipe.time;
+          const ready = recipe.inputs.every((inp) => (m.inBuf.get(inp.item) ?? 0) >= inp.amount);
+          if (ready && m.progress < effectiveTime) {
+            wants = true;
+            draw = recipe.power;
+          }
         }
       }
       if (wants) {
@@ -315,37 +365,45 @@ export class World {
         if (worked.has(c)) {
           const out = this.neighbor(c, m.dir);
           if (out >= 0 && this.modules.get(out)?.type === 'conveyor' && !occ.has(this.microKey(out, 0))) {
-            this.packets.push({ id: this.nextId++, item: 'ore', cell: out, slot: 0, prevCell: out, prevSlot: 0 });
+            const oreKind = this.ore.get(c) ?? 'iron';
+            const oreItem: ItemType = oreKind === 'copper' ? 'copper_ore' : 'ore';
+            this.packets.push({ id: this.nextId++, item: oreItem, cell: out, slot: 0, prevCell: out, prevSlot: 0 });
             occ.add(this.microKey(out, 0));
             m.cooldown = minerPeriod;
             m.busy = true;
           }
         }
-      } else if (CONVERTERS[m.type]) {
-        const cfg = CONVERTERS[m.type]!;
-        const time = m.type === 'smelter' ? smeltTime : cfg.time;
-        if (worked.has(c)) {
-          m.busy = true;
-          m.progress++;
-          if (m.progress >= time) {
-            m.progress = 0;
-            m.inBuf--;
-            m.outBuf++;
+      } else if (m.recipeId) {
+        const recipe = getRecipe(m.recipeId);
+        if (recipe) {
+          const effectiveTime = m.recipeId === 'smelt_iron' ? smeltTime : recipe.time;
+          if (worked.has(c)) {
+            m.busy = true;
+            m.progress++;
+            if (m.progress >= effectiveTime) {
+              m.progress = 0;
+              // Consume all inputs.
+              for (const inp of recipe.inputs) {
+                const cur = m.inBuf.get(inp.item) ?? 0;
+                m.inBuf.set(inp.item, Math.max(0, cur - inp.amount));
+              }
+              m.outBuf += recipe.outputCount;
+            }
           }
-        }
-        if (m.outBuf > 0) {
-          const out = this.neighbor(c, m.dir);
-          if (out >= 0 && this.modules.get(out)?.type === 'conveyor' && !occ.has(this.microKey(out, 0))) {
-            this.packets.push({ id: this.nextId++, item: cfg.out, cell: out, slot: 0, prevCell: out, prevSlot: 0 });
-            occ.add(this.microKey(out, 0));
-            m.outBuf--;
+          if (m.outBuf > 0) {
+            const out = this.neighbor(c, m.dir);
+            if (out >= 0 && this.modules.get(out)?.type === 'conveyor' && !occ.has(this.microKey(out, 0))) {
+              this.packets.push({ id: this.nextId++, item: recipe.output, cell: out, slot: 0, prevCell: out, prevSlot: 0 });
+              occ.add(this.microKey(out, 0));
+              m.outBuf--;
+            }
           }
         }
       } else if (m.type === 'lab') {
         const id = this.research.active;
         const tech = id ? TECHS.find((t) => t.id === id) : undefined;
-        if (m.inBuf > 0 && tech && tech.costItem === 'science' && this.research.progress < tech.cost) {
-          m.inBuf--;
+        if ((m.inBuf.get('science') ?? 0) > 0 && tech && tech.costItem === 'science' && this.research.progress < tech.cost) {
+          m.inBuf.set('science', (m.inBuf.get('science') ?? 0) - 1);
           m.busy = true;
           this.research.progress++;
           if (this.research.progress >= tech.cost) this.completeResearch(tech.id);
@@ -376,17 +434,22 @@ export class World {
       modules: [...this.modules.entries()].map(([cell, m]) => {
         const v: ModuleView = { cell, type: m.type, dir: m.dir };
         if (m.type === 'smelter') {
-          v.progress = m.progress / smeltTime;
-          v.buffer = m.inBuf;
+          const recipe = m.recipeId ? getRecipe(m.recipeId) : undefined;
+          const time = m.recipeId === 'smelt_iron' ? smeltTime : (recipe?.time ?? smeltTime);
+          v.progress = m.progress / time;
+          v.buffer = [...m.inBuf.values()].reduce((a, b) => a + b, 0);
           v.out = m.outBuf;
           v.busy = m.busy;
+          v.recipe = m.recipeId;
         } else if (m.type === 'assembler') {
-          v.progress = m.progress / CONVERTERS.assembler!.time;
-          v.buffer = m.inBuf;
+          const recipe = m.recipeId ? getRecipe(m.recipeId) : undefined;
+          v.progress = recipe ? m.progress / recipe.time : 0;
+          v.buffer = [...m.inBuf.values()].reduce((a, b) => a + b, 0);
           v.out = m.outBuf;
           v.busy = m.busy;
+          v.recipe = m.recipeId;
         } else if (m.type === 'lab') {
-          v.buffer = m.inBuf;
+          v.buffer = [...m.inBuf.values()].reduce((a, b) => a + b, 0);
           v.busy = m.busy;
         } else if (m.type === 'miner') {
           v.busy = m.busy;
@@ -402,9 +465,12 @@ export class World {
       }),
       storage: { ...this.storage },
       power: { ...this.power },
-      ore: [...this.ore],
+      ore: [...this.ore.keys()],
+      oreType: [...this.ore.values()],
       inventory: { ...this.inventory },
-      unlocked: [...this.unlocked],
+      unlocked: [...this.unlocked].filter((k): k is ModuleType =>
+        ['miner', 'conveyor', 'smelter', 'storage', 'generator', 'assembler', 'lab'].includes(k),
+      ),
       research: { active: this.research.active, progress: this.research.progress, completed: [...this.research.completed] },
     };
   }
