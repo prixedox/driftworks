@@ -321,3 +321,77 @@ body {
   font: 700 9px/1 ui-monospace, monospace;
   color: var(--ore);
 }
+
+/* Locked hotbar tiles */
+.dw-tile.locked {
+  opacity: 0.45;
+}
+.dw-tile .dw-lock {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+/* Research panel */
+.dw-research {
+  position: fixed;
+  right: 16px;
+  top: 96px;
+  width: 260px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0;
+  z-index: 13;
+  display: none;
+  overflow: hidden;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+.dw-research.show {
+  display: block;
+  animation: dw-rise 0.18s ease-out;
+}
+.dw-tech {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dw-tech:last-of-type {
+  border-bottom: none;
+}
+.dw-tech-name {
+  font: 700 13px/1.3 system-ui, sans-serif;
+  color: var(--text);
+}
+.dw-tech-status {
+  font: 500 11px/1.3 system-ui, sans-serif;
+  color: var(--muted);
+}
+.dw-btn {
+  appearance: none;
+  background: rgba(90, 209, 192, 0.1);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  border-radius: var(--r-sm);
+  padding: 5px 10px;
+  font: 600 12px/1 system-ui, sans-serif;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.dw-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.dw-btn:not(:disabled):hover {
+  background: rgba(90, 209, 192, 0.2);
+}
+.dw-contribute {
+  margin: 10px 12px;
+  display: block;
+}

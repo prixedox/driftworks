@@ -12,12 +12,14 @@ export interface HotbarCallbacks {
   toggleExplain: (on: boolean) => void;
   rotateView: (d: number) => void;
   reset: () => void;
+  researchToggle: () => void;
 }
 export interface Hotbar {
   setActive: (t: Tool) => void;
   setDir: (d: Dir) => void;
   setPaused: (p: boolean) => void;
   setSpeed: (ms: number) => void;
+  setUnlocked: (unlocked: ModuleType[]) => void;
 }
 
 const TOOLS: Tool[] = ['miner', 'conveyor', 'smelter', 'storage', 'generator', 'assembler', 'lab', 'erase', 'inspect'];
@@ -49,6 +51,11 @@ export function buildHotbar(root: HTMLElement, cb: HotbarCallbacks): Hotbar {
       cost.className = 'dw-cost';
       cost.textContent = String(BUILD_COSTS[t].amount);
       b.append(cost);
+      const lockOverlay = document.createElement('span');
+      lockOverlay.className = 'dw-lock';
+      lockOverlay.style.display = 'none';
+      lockOverlay.append(svgEl('lock'));
+      b.append(lockOverlay);
     }
     b.addEventListener('click', () => cb.selectTool(t));
     tileMap.set(t, b);
@@ -70,7 +77,8 @@ export function buildHotbar(root: HTMLElement, cb: HotbarCallbacks): Hotbar {
   });
   explainBtn.classList.add('active');
   const resetBtn = ctrl('Reset', () => cb.reset());
-  dock.append(dirBtn, viewBtn, pauseBtn, speedBtn, explainBtn, resetBtn);
+  const researchBtn = ctrl('Research', () => cb.researchToggle());
+  dock.append(dirBtn, viewBtn, pauseBtn, speedBtn, explainBtn, researchBtn, resetBtn);
 
   wrap.append(tiles, dock);
   root.append(wrap);
@@ -92,6 +100,15 @@ export function buildHotbar(root: HTMLElement, cb: HotbarCallbacks): Hotbar {
     },
     setSpeed(ms) {
       speedBtn.textContent = `Speed ${(150 / ms).toFixed(1)}×`;
+    },
+    setUnlocked(unlocked) {
+      for (const [t, b] of tileMap) {
+        if (t === 'erase' || t === 'inspect') continue;
+        const isUnlocked = unlocked.includes(t);
+        b.classList.toggle('locked', !isUnlocked);
+        const lockEl = b.querySelector<HTMLElement>('.dw-lock');
+        if (lockEl) lockEl.style.display = isUnlocked ? 'none' : 'grid';
+      }
     },
   };
 

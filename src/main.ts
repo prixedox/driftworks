@@ -92,6 +92,9 @@ async function main(): Promise<void> {
   const SPEEDS = [300, 150, 80, 40]; // ms per tick (belts move 1 of 4 slots per tick)
   let speedIdx = 1;
 
+  const selectResearch = (tech: string) => send({ type: 'research', action: 'select', tech });
+  const contributeResearch = () => send({ type: 'research', action: 'contribute' });
+
   const hud = buildHud(root, {
     selectTool: (t) => {
       tool = t;
@@ -128,6 +131,8 @@ async function main(): Promise<void> {
       renderer.setPlayer(20.5, 13.5);
       send({ type: 'reset' });
     },
+    selectResearch,
+    contributeResearch,
   });
   hud.setDir(dir);
   hud.setSpeed(SPEEDS[speedIdx]);
@@ -143,6 +148,7 @@ async function main(): Promise<void> {
     latest = snap;
     renderer.setSnapshot(snap);
     hud.setStats(snap);
+    hud.setResearch(snap);
     if (inspectCell != null) refreshInspect();
     updateAffordances();
     const pl = renderer.getPlayer();

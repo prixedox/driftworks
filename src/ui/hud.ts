@@ -4,6 +4,7 @@ import { buildHotbar, type Tool } from './hotbar';
 import { buildInspector, type InspectRow } from './inspector';
 import { buildJoystick } from './joystick';
 import { buildToasts } from './toasts';
+import { buildResearch } from './research';
 
 export type { Tool, InspectRow };
 
@@ -17,9 +18,12 @@ export interface HudCallbacks {
   rotateView: (d: number) => void;
   closeInspect: () => void;
   reset: () => void;
+  selectResearch: (tech: string) => void;
+  contributeResearch: () => void;
 }
 export interface Hud {
   setStats: (s: Snapshot) => void;
+  setResearch: (s: Snapshot) => void;
   setDir: (d: Dir) => void;
   setPaused: (p: boolean) => void;
   setSpeed: (ms: number) => void;
@@ -30,6 +34,7 @@ export interface Hud {
 
 export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
   const status = buildStatusBar(root);
+  const research = buildResearch(root, { select: cb.selectResearch, contribute: cb.contributeResearch });
   const hotbar = buildHotbar(root, {
     selectTool: (t) => {
       cb.selectTool(t);
@@ -41,6 +46,7 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
     toggleExplain: cb.toggleExplain,
     rotateView: cb.rotateView,
     reset: cb.reset,
+    researchToggle: () => research.toggle(),
   });
   hotbar.setActive('conveyor');
   const inspector = buildInspector(root, cb.closeInspect);
@@ -53,7 +59,8 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
   root.append(hint);
 
   return {
-    setStats: (s) => status.update(s),
+    setStats: (s) => { status.update(s); hotbar.setUnlocked(s.unlocked); },
+    setResearch: (s) => research.update(s),
     setDir: (d) => hotbar.setDir(d),
     setPaused: (p) => hotbar.setPaused(p),
     setSpeed: (ms) => hotbar.setSpeed(ms),

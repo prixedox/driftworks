@@ -95,6 +95,49 @@ export const ICONS: Record<string, string> = {
     <!-- shine line -->
     <line x1="6" y1="12" x2="18" y2="12"/>
   </svg>`,
+
+  science: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- flask body -->
+    <path d="M9 3h6M10 3v6L6 17a2 2 0 0 0 1.8 2.9h8.4A2 2 0 0 0 18 17L14 9V3"/>
+    <!-- bubbles inside -->
+    <circle cx="10" cy="15" r="0.8" fill="currentColor" stroke="none"/>
+    <circle cx="13" cy="17" r="0.8" fill="currentColor" stroke="none"/>
+  </svg>`,
+
+  assembler: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- gear outer circle -->
+    <circle cx="12" cy="12" r="3"/>
+    <!-- gear teeth -->
+    <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>
+  </svg>`,
+
+  lab: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- microscope base -->
+    <rect x="5" y="19" width="14" height="2" rx="1"/>
+    <!-- arm -->
+    <line x1="12" y1="19" x2="12" y2="10"/>
+    <line x1="8" y1="10" x2="16" y2="10"/>
+    <!-- eyepiece -->
+    <rect x="10" y="4" width="4" height="6" rx="1"/>
+    <!-- stage -->
+    <line x1="9" y1="15" x2="15" y2="15"/>
+    <circle cx="12" cy="15" r="2"/>
+  </svg>`,
+
+  research: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- lightbulb -->
+    <path d="M9 21h6M12 3a6 6 0 0 1 4.5 10c-.8.9-1.5 1.7-1.5 3H9c0-1.3-.7-2.1-1.5-3A6 6 0 0 1 12 3z"/>
+    <line x1="12" y1="16" x2="12" y2="19"/>
+  </svg>`,
+
+  lock: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- shackle -->
+    <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+    <!-- body -->
+    <rect x="5" y="11" width="14" height="10" rx="2"/>
+    <!-- keyhole -->
+    <circle cx="12" cy="16" r="1" fill="currentColor" stroke="none"/>
+  </svg>`,
 };
 
 export function svgEl(name: string, cls = 'dw-icon'): HTMLElement {

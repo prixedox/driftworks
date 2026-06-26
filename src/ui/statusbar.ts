@@ -23,7 +23,8 @@ export function buildStatusBar(root: HTMLElement): StatusBar {
 
   const ore = chip('ore', '0');
   const plate = chip('plate', '0');
-  bar.append(pulse.el, powerWrap, ore.el, plate.el);
+  const science = chip('science', '0');
+  bar.append(pulse.el, powerWrap, ore.el, plate.el, science.el);
   root.append(bar);
 
   return {
@@ -35,6 +36,7 @@ export function buildStatusBar(root: HTMLElement): StatusBar {
       powerNum.textContent = `${s.power.used}/${s.power.produced}`;
       ore.value.textContent = String(s.inventory.ore ?? 0);
       plate.value.textContent = String(s.inventory.plate ?? 0);
+      science.value.textContent = String(s.inventory.science ?? 0);
     },
   };
 
