@@ -28,8 +28,9 @@ export const PALETTE = {
   /** Hazard stripe colors. */
   warning: 0xf2b21c,
   warningDark: 0x14110a,
-  /** Scene background (dark blue) — kept here so the lab + renderer agree. */
-  background: 0x0b1016,
+  /** Scene background — matched to the sky dome's horizon tone so the flat
+   *  background, the gradient dome, and the fog all agree (no hard seam). */
+  background: 0x141826,
 } as const;
 
 /** Per-module visual intent. Seeded from DEFS colors; accents/emissives chosen
@@ -51,8 +52,11 @@ export const MODULE_STYLE: Record<ModuleType, ModuleStyle> = {
   lab: { color: DEFS.lab.color, accent: 0xa9d6ff, emissive: 0x6bb6ff },
 };
 
-/** UnrealBloom tuning. Starting point — tune exposure + these together. */
-export const BLOOM = { strength: 0.55, radius: 0.5, threshold: 0.78 } as const;
+/** UnrealBloom tuning. Threshold raised so ONLY the brightest emissives
+ *  (packets, smelter door, generator vents, lab core, player visor) bloom —
+ *  matte shells, ground, and the warm ore veins stay grounded and do not flare
+ *  into a field of stars. Strength eased a touch to keep the glow tasteful. */
+export const BLOOM = { strength: 0.5, radius: 0.5, threshold: 0.86 } as const;
 
 /** Light rig. Colors + intensities; the renderer wires positions/shadows. */
 export const LIGHT = {
@@ -68,8 +72,15 @@ export const LIGHT = {
   ambientIntensity: 0.65,
 } as const;
 
-/** Tone-mapping exposure used with ACESFilmicToneMapping. */
-export const TONE_EXPOSURE = 1.05;
+/** Tone-mapping exposure used with ACESFilmicToneMapping. Eased slightly below
+ *  1.0 so the combined (models + scenery + effects) scene isn't blown out. */
+export const TONE_EXPOSURE = 0.98;
+
+/** Exponential distance fog for depth at the map edges. Color matches the
+ *  background / sky horizon; density is low so the playable area stays clear and
+ *  only the far map fringe softens into the sky. The renderer owns the scene, so
+ *  it applies this (the lab uses its own small fog or none). */
+export const FOG = { color: 0x141826, density: 0.014 } as const;
 
 /** Multiply an RGB hex int by a scalar factor (per-channel, clamped low end). */
 export function darken(c: number, f: number): number {

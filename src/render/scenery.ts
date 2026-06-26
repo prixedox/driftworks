@@ -140,13 +140,16 @@ export function buildScenery(s: Snapshot, kit: MaterialKit): Scenery {
     });
     owned.push(rockMat, ...rockGeos);
 
-    // Emissive crystal vein/tip shape.
-    const veinGeo = new TetrahedronGeometry(0.18, 0);
+    // Emissive crystal vein/tip shape. Kept FAINT and below the bloom threshold:
+    // ore should read as warm mineral deposits, not a field of glowing stars —
+    // the factory's machines/packets are the focal glow. Low emissiveIntensity +
+    // a warmer/dimmer crystal color so the tips catch the light without flaring.
+    const veinGeo = new TetrahedronGeometry(0.15, 0);
     const veinMat = new MeshStandardMaterial({
-      color: darken(PALETTE.oreCrystal, 0.5),
-      emissive: PALETTE.oreCrystal,
-      emissiveIntensity: 1.5,
-      roughness: 0.45,
+      color: darken(PALETTE.oreCrystal, 0.55),
+      emissive: darken(PALETTE.oreCrystal, 0.8),
+      emissiveIntensity: 0.5,
+      roughness: 0.5,
       metalness: 0,
       flatShading: true,
     });
@@ -177,15 +180,16 @@ export function buildScenery(s: Snapshot, kit: MaterialKit): Scenery {
         scl.set(size, size * 0.8, size);
         rockInst.push({ shape, mat: new Matrix4().compose(pos, quat, scl) });
 
-        // ~70% of chunks get a glowing vein tip poking out near the top
-        if (rnd() < 0.7) {
+        // Only ~40% of chunks get a small glowing crystal tip poking out near the
+        // top — sparse + modest so deposits read as warm mineral, not a star field.
+        if (rnd() < 0.4) {
           const vx = p.x + ox + (rnd() - 0.5) * 0.2;
           const vz = p.z + oz + (rnd() - 0.5) * 0.2;
-          const vs = 0.5 + rnd() * 0.7;
+          const vs = 0.4 + rnd() * 0.45;
           pos.set(vx, size * 0.85 + 0.05, vz);
           euler.set(rnd() * Math.PI, rnd() * Math.PI, rnd() * Math.PI);
           quat.setFromEuler(euler);
-          scl.set(vs, vs * (1.2 + rnd()), vs);
+          scl.set(vs, vs * (1.1 + rnd() * 0.8), vs);
           veinMats.push(new Matrix4().compose(pos, quat, scl));
         }
       }
@@ -357,12 +361,15 @@ function makeSkyTexture(): CanvasTexture {
   c.height = hpx;
   const ctx = c.getContext('2d')!;
   const grad = ctx.createLinearGradient(0, 0, 0, hpx);
-  // top (V=0) = sphere apex = deep night-blue; bottom (V=1) = horizon warm haze
+  // top (V=0) = sphere apex = deep night-blue; bottom (V=1) = horizon haze that
+  // settles to the scene background/fog tone (#141826) so the dome, the flat
+  // background, and the FogExp2 all meet without a visible seam. A faint warm
+  // band just above the horizon keeps the dusk-industrial mood.
   grad.addColorStop(0.0, '#070b13');
   grad.addColorStop(0.45, '#0e1622');
-  grad.addColorStop(0.72, '#1d2535');
-  grad.addColorStop(0.88, '#3a3550');
-  grad.addColorStop(1.0, '#5a4a52'); // warm dusk haze at the horizon
+  grad.addColorStop(0.72, '#1b2335');
+  grad.addColorStop(0.9, '#2c2c40'); // faint warm-cool dusk band
+  grad.addColorStop(1.0, '#141826'); // == PALETTE.background / FOG.color
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, wpx, hpx);
   return new CanvasTexture(c);

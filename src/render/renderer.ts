@@ -7,6 +7,7 @@ import {
   Color,
   DirectionalLight,
   EdgesGeometry,
+  FogExp2,
   Group,
   HemisphereLight,
   InstancedMesh,
@@ -33,7 +34,7 @@ import { buildModuleModel, buildPlayerModel } from './models';
 import { buildScenery, type Scenery } from './scenery';
 import { Effects } from './effects';
 import { PostFX } from './postfx';
-import { LIGHT, PALETTE, TONE_EXPOSURE, darken } from './style';
+import { FOG, LIGHT, PALETTE, TONE_EXPOSURE, darken } from './style';
 
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 const WALK_SPEED = 6.5; // tiles / second
@@ -105,6 +106,12 @@ export class Renderer {
     parent.appendChild(this.renderer.domElement);
 
     this.scene.background = new Color(PALETTE.background);
+    // Subtle exponential fog for depth at the map edges. Color matches the
+    // background + sky-dome horizon so the far fringe of the map dissolves into
+    // the sky instead of ending on a hard line. The sky dome opts out of fog
+    // (its material has fog:false) so the backdrop stays crisp. Low density keeps
+    // the playable area near the player perfectly clear.
+    this.scene.fog = new FogExp2(FOG.color, FOG.density);
     this.updateFrustum();
 
     this.kit = createMaterialKit();
