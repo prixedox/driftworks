@@ -15,7 +15,7 @@ export const BUILD_COSTS: Record<ModuleType, BuildCost> = {
   lab: { item: 'plate', amount: 15 },
 };
 
-export const START_INVENTORY: Record<ItemType, number> = { ore: 30, plate: 0, science: 0 };
+export const START_INVENTORY: Record<ItemType, number> = { ore: 40, plate: 0, science: 0 };
 
 export const START_UNLOCKED: ModuleType[] = ['miner', 'conveyor', 'storage'];
 

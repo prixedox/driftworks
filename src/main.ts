@@ -30,6 +30,7 @@ function describe(cell: number, s: Snapshot): { title: string; rows: { label: st
         rows: [
           { label: 'Ore', value: String(s.storage.ore), icon: 'ore' },
           { label: 'Plate', value: String(s.storage.plate), icon: 'plate' },
+          { label: 'Science', value: String(s.storage.science), icon: 'science' },
         ],
       };
     case 'smelter':
@@ -53,10 +54,31 @@ function describe(cell: number, s: Snapshot): { title: string; rows: { label: st
         ],
       };
     }
-    case 'generator':
-      return { title: 'Generator', rows: [{ label: 'Power output', value: '+12' }] };
+    case 'generator': {
+      const out = s.research.completed.includes('power_grid') ? 18 : 12;
+      return { title: 'Generator', rows: [{ label: 'Power output', value: `+${out}` }] };
+    }
     case 'conveyor':
       return { title: 'Conveyor belt', rows: [{ label: 'Direction', value: dirName }] };
+    case 'assembler':
+      return {
+        title: 'Assembler',
+        rows: [
+          { label: 'Plate waiting', value: String(m.buffer ?? 0) },
+          { label: 'Progress', value: `${Math.round((m.progress ?? 0) * 100)}%`, bar: m.progress ?? 0 },
+          { label: 'Science ready', value: String(m.out ?? 0) },
+          { label: 'Status', value: m.busy ? 'assembling' : 'idle' },
+        ],
+      };
+    case 'lab':
+      return {
+        title: 'Lab',
+        rows: [
+          { label: 'Science buffered', value: String(m.buffer ?? 0) },
+          { label: 'Researching', value: s.research.active ?? 'nothing' },
+          { label: 'Status', value: m.busy ? 'researching' : 'idle' },
+        ],
+      };
   }
   return null;
 }

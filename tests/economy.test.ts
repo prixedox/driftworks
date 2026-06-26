@@ -3,15 +3,15 @@ import { World } from '../src/sim/world';
 let fails = 0;
 const ok = (c: boolean, m: string) => { if (!c) { console.error('FAIL', m); fails++; } };
 
-// fresh world seeded with 30 ore
+// fresh world seeded with 40 ore
 const w = new World();
 w.loadDemo();
-ok(w.inventory.ore === 30, `seed 30 ore (got ${w.inventory.ore})`);
+ok(w.inventory.ore === 40, `seed 40 ore (got ${w.inventory.ore})`);
 
 // placing a miner (5 ore) on an empty non-demo cell deducts 5 and succeeds
 const empty = w.cell(2, 2);
 ok(w.place(empty, 'miner', 1) === true, 'place miner returns true');
-ok(w.inventory.ore === 25, `miner cost 5 ore (got ${w.inventory.ore})`);
+ok(w.inventory.ore === 35, `miner cost 5 ore (got ${w.inventory.ore})`);
 
 // can't afford: drain ore, then placing fails and does not deduct below 0
 w.inventory.ore = 0;
