@@ -1,14 +1,12 @@
 import {
+  ACESFilmicToneMapping,
   AmbientLight,
   BoxGeometry,
   BufferGeometry,
   CanvasTexture,
   Color,
-  ConeGeometry,
-  CylinderGeometry,
   DirectionalLight,
   EdgesGeometry,
-  Float32BufferAttribute,
   Group,
   HemisphereLight,
   InstancedMesh,
@@ -19,11 +17,9 @@ import {
   MeshStandardMaterial,
   OrthographicCamera,
   PCFSoftShadowMap,
-  PlaneGeometry,
   Raycaster,
-  RepeatWrapping,
   Scene,
-  SphereGeometry,
+  SRGBColorSpace,
   Sprite,
   SpriteMaterial,
   Vector2,
@@ -32,6 +28,12 @@ import {
   type Material,
 } from 'three';
 import { DEFS, ITEM_COLOR, type Dir, type ItemType, type ModuleType, type Snapshot } from '../sim/types';
+import { createMaterialKit, type MaterialKit } from './materials';
+import { buildModuleModel, buildPlayerModel } from './models';
+import { buildScenery, type Scenery } from './scenery';
+import { Effects } from './effects';
+import { PostFX } from './postfx';
+import { LIGHT, PALETTE, TONE_EXPOSURE, darken } from './style';
 
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 const WALK_SPEED = 6.5; // tiles / second
@@ -40,18 +42,12 @@ const EL = (38 * Math.PI) / 180; // camera elevation angle
 const VIEW_TILES = 17; // vertical tiles visible (ortho zoom)
 const CAM_DIST = 90; // camera distance (ortho: only affects clipping, not scale)
 
-const darken = (c: number, f: number): number => {
-  const r = Math.floor(((c >> 16) & 255) * f);
-  const g = Math.floor(((c >> 8) & 255) * f);
-  const b = Math.floor((c & 255) * f);
-  return (r << 16) | (g << 8) | b;
-};
-
 interface ModEntry {
   group: Group;
   type: ModuleType;
   dir: Dir;
   body?: Mesh; // for busy emissive pulse
+  anim?: (dt: number, now: number, busy: boolean) => void; // optional per-frame model hook
 }
 
 // 3D presentation layer (Three.js). Fixed isometric orthographic camera that
@@ -65,22 +61,25 @@ export class Renderer {
   private dirLight!: DirectionalLight;
   private raycaster = new Raycaster();
 
+  private kit!: MaterialKit;
+  private postfx!: PostFX;
+  private effects!: Effects;
+  private scenery?: Scenery;
+
   private worldGroup = new Group(); // ground + grid + ore (rebuilt on ore change)
   private moduleGroup = new Group();
   private packetGroup = new Group();
   private player3d = new Group();
 
-  private ghost = new Mesh(new BoxGeometry(0.84, MACH_H, 0.84), new MeshStandardMaterial({ color: 0x5ad1c0, transparent: true, opacity: 0.4, depthWrite: false }));
+  private ghost = new Mesh(new BoxGeometry(0.84, MACH_H, 0.84), new MeshStandardMaterial({ color: PALETTE.accent, transparent: true, opacity: 0.4, depthWrite: false }));
   private highlight = new Group();
   private highlightSig = '';
-  private selected = new LineSegments(new EdgesGeometry(new BoxGeometry(0.92, MACH_H, 0.92)), new LineBasicMaterial({ color: 0x5ad1c0 }));
+  private selected = new LineSegments(new EdgesGeometry(new BoxGeometry(0.92, MACH_H, 0.92)), new LineBasicMaterial({ color: PALETTE.accent }));
 
   private modMap = new Map<number, ModEntry>();
   private packetMap = new Map<number, Mesh>();
-  private matCache = new Map<number, MeshStandardMaterial>();
   private disposables: (BufferGeometry | Material)[] = [];
   private beltTex!: CanvasTexture;
-  private beltMat!: MeshStandardMaterial;
 
   private snap: Snapshot | null = null;
   private snapTime = 0;
@@ -100,19 +99,25 @@ export class Renderer {
     this.renderer.setSize(parent.clientWidth, parent.clientHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = PCFSoftShadowMap;
+    this.renderer.toneMapping = ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = TONE_EXPOSURE;
+    this.renderer.outputColorSpace = SRGBColorSpace;
     parent.appendChild(this.renderer.domElement);
 
-    this.scene.background = new Color(0x0b1016);
+    this.scene.background = new Color(PALETTE.background);
     this.updateFrustum();
 
-    this.beltTex = this.makeBeltTexture();
-    this.beltMat = new MeshStandardMaterial({ map: this.beltTex, roughness: 0.7, metalness: 0.05 });
+    this.kit = createMaterialKit();
+    this.beltTex = this.kit.beltTexture();
 
-    this.scene.add(new AmbientLight(0x8a98ad, 0.75));
-    this.scene.add(new HemisphereLight(0xbfe0ff, 0x16240f, 0.55));
-    const dir = new DirectionalLight(0xfff1d6, 1.2);
+    // Light rig from style.LIGHT: ambient + hemisphere fill, warm directional key.
+    this.scene.add(new AmbientLight(LIGHT.ambient, LIGHT.ambientIntensity));
+    this.scene.add(new HemisphereLight(LIGHT.hemiSky, LIGHT.hemiGround, LIGHT.hemiIntensity));
+    const dir = new DirectionalLight(LIGHT.key, LIGHT.keyIntensity);
     dir.castShadow = true;
-    dir.shadow.mapSize.set(1024, 1024);
+    dir.shadow.mapSize.set(2048, 2048);
+    dir.shadow.bias = -0.0004;
+    dir.shadow.radius = 3;
     const sc = dir.shadow.camera;
     sc.left = -VIEW_TILES;
     sc.right = VIEW_TILES;
@@ -132,6 +137,10 @@ export class Renderer {
     this.selected.visible = false;
     this.scene.add(this.selected);
 
+    this.effects = new Effects(this.kit);
+    this.effects.attach(this.scene);
+    this.postfx = new PostFX(this.renderer, this.scene, this.camera);
+
     window.addEventListener('resize', () => this.onResize());
     this.last = performance.now();
     this.renderer.setAnimationLoop(() => this.frame());
@@ -144,6 +153,7 @@ export class Renderer {
   private onResize(): void {
     this.renderer.setSize(this.parent.clientWidth, this.parent.clientHeight);
     this.updateFrustum();
+    this.postfx.resize(this.parent.clientWidth, this.parent.clientHeight);
   }
 
   private updateFrustum(): void {
@@ -159,123 +169,22 @@ export class Renderer {
     this.camera.updateProjectionMatrix();
   }
 
-  private mat(color: number): MeshStandardMaterial {
-    let m = this.matCache.get(color);
-    if (!m) {
-      m = new MeshStandardMaterial({ color, roughness: 0.78, metalness: 0.08 });
-      this.matCache.set(color, m);
-    }
-    return m;
-  }
-
   private cw(cell: number): Vector3 {
     const w = this.snap?.w ?? 40;
     return new Vector3((cell % w) + 0.5, 0, Math.floor(cell / w) + 0.5);
   }
 
   private buildPlayer(): void {
-    const body = new Mesh(new CylinderGeometry(0.26, 0.3, 0.5, 16), new MeshStandardMaterial({ color: 0x2bb5a4, roughness: 0.5 }));
-    body.position.y = 0.35;
-    body.castShadow = true;
-    const head = new Mesh(new SphereGeometry(0.22, 16, 12), new MeshStandardMaterial({ color: 0x7df0e0, emissive: 0x176b60, emissiveIntensity: 0.5 }));
-    head.position.y = 0.78;
-    head.castShadow = true;
-    const nose = new Mesh(new ConeGeometry(0.09, 0.22, 12), new MeshStandardMaterial({ color: 0x0c1611 }));
-    nose.rotation.x = Math.PI / 2;
-    nose.position.set(0, 0.5, 0.3);
-    this.player3d.add(body, head, nose);
+    const model = buildPlayerModel(this.kit);
+    this.player3d.add(...model.children.slice());
   }
 
-  // ---- world (ground + grid + ore) ----
+  // ---- world (ground + grid + ore) — built by the scenery seam ----
   private buildWorld(s: Snapshot): void {
     for (const child of this.worldGroup.children.slice()) this.worldGroup.remove(child);
-    const w = s.w;
-    const h = s.h;
-
-    const ground = new Mesh(new PlaneGeometry(w, h), new MeshStandardMaterial({ color: 0x16241a, roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2;
-    ground.position.set(w / 2, 0, h / 2);
-    ground.receiveShadow = true;
-    this.worldGroup.add(ground);
-
-    // grid lines over the play field
-    const pts: number[] = [];
-    for (let x = 0; x <= w; x++) pts.push(x, 0.02, 0, x, 0.02, h);
-    for (let z = 0; z <= h; z++) pts.push(0, 0.02, z, w, 0.02, z);
-    const lg = new BufferGeometry();
-    lg.setAttribute('position', new Float32BufferAttribute(pts, 3));
-    this.worldGroup.add(new LineSegments(lg, new LineBasicMaterial({ color: 0x24332a, transparent: true, opacity: 0.5 })));
-
-    // ore deposits (instanced raised tiles) + crystals
-    const ore = s.ore;
-    if (ore.length) {
-      const oreGeo = new BoxGeometry(0.98, 0.1, 0.98);
-      const oreMat = new MeshStandardMaterial({ color: 0x9a6a2e, roughness: 0.95 });
-      const tiles = new InstancedMesh(oreGeo, oreMat, ore.length);
-      tiles.receiveShadow = true;
-      const m = new Matrix4();
-      const crystalPos: number[] = [];
-      let seed = 1234;
-      const rnd = () => {
-        seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-        return seed / 0x7fffffff;
-      };
-      ore.forEach((cell, i) => {
-        const p = this.cw(cell);
-        m.makeTranslation(p.x, 0.05, p.z);
-        tiles.setMatrixAt(i, m);
-        if (rnd() < 0.4) crystalPos.push(p.x + (rnd() - 0.5) * 0.4, 0, p.z + (rnd() - 0.5) * 0.4);
-      });
-      tiles.instanceMatrix.needsUpdate = true;
-      this.worldGroup.add(tiles);
-      this.disposables.push(oreGeo, oreMat);
-
-      if (crystalPos.length) {
-        const cGeo = new ConeGeometry(0.12, 0.12, 5);
-        const cMat = new MeshStandardMaterial({ color: 0xf0b25a, emissive: 0x6b4410, emissiveIntensity: 0.4, roughness: 0.6 });
-        const crystals = new InstancedMesh(cGeo, cMat, crystalPos.length / 3);
-        crystals.castShadow = true;
-        for (let i = 0; i < crystalPos.length / 3; i++) {
-          m.makeTranslation(crystalPos[i * 3], 0.13, crystalPos[i * 3 + 2]);
-          crystals.setMatrixAt(i, m);
-        }
-        crystals.instanceMatrix.needsUpdate = true;
-        this.worldGroup.add(crystals);
-        this.disposables.push(cGeo, cMat);
-      }
-    }
-  }
-
-  // ---- machines ----
-  private orientArrow(mesh: Mesh, dir: Dir): void {
-    // cone points +Y by default; lay it flat pointing along the grid direction
-    if (dir === 1) mesh.rotation.z = -Math.PI / 2; // +X (east)
-    else if (dir === 3) mesh.rotation.z = Math.PI / 2; // -X (west)
-    else if (dir === 2) mesh.rotation.x = Math.PI / 2; // +Z (south)
-    else mesh.rotation.x = -Math.PI / 2; // -Z (north)
-  }
-
-  private makeBeltTexture(): CanvasTexture {
-    const c = document.createElement('canvas');
-    c.width = c.height = 64;
-    const x = c.getContext('2d')!;
-    x.fillStyle = '#283139';
-    x.fillRect(0, 0, 64, 64);
-    x.strokeStyle = '#56cbb8';
-    x.lineWidth = 7;
-    x.lineCap = 'round';
-    // chevrons pointing "up" (-V); the texture scrolls to animate the tread
-    for (let i = -1; i < 3; i++) {
-      const yy = i * 32;
-      x.beginPath();
-      x.moveTo(10, yy + 26);
-      x.lineTo(32, yy + 8);
-      x.lineTo(54, yy + 26);
-      x.stroke();
-    }
-    const t = new CanvasTexture(c);
-    t.wrapS = t.wrapT = RepeatWrapping;
-    return t;
+    this.scenery?.dispose();
+    this.scenery = buildScenery(s, this.kit);
+    this.worldGroup.add(this.scenery.group);
   }
 
   private makeLabel(text: string): Sprite {
@@ -294,37 +203,20 @@ export class Renderer {
   }
 
   private buildModule(m: { cell: number; type: ModuleType; dir: Dir }): ModEntry {
-    const g = new Group();
+    const built = buildModuleModel(m.type, m.dir, this.kit);
+    const g = built.group;
     const p = this.cw(m.cell);
     g.position.set(p.x, 0, p.z);
-    let body: Mesh | undefined;
 
-    if (m.type === 'conveyor') {
-      const belt = new Mesh(new BoxGeometry(0.92, 0.16, 0.92), this.beltMat);
-      belt.position.y = 0.13; // sits above the ore deposit layer so belts stay visible on ore
-      belt.rotation.y = [Math.PI, -Math.PI / 2, 0, Math.PI / 2][m.dir];
-      belt.receiveShadow = true;
-      g.add(belt);
-    } else {
-      const def = DEFS[m.type];
-      body = new Mesh(new BoxGeometry(0.84, MACH_H, 0.84), this.mat(def.color));
-      body.position.y = MACH_H / 2;
-      body.castShadow = true;
-      body.receiveShadow = true;
-      g.add(body);
-      if (m.type === 'miner' || m.type === 'smelter') {
-        const ar = new Mesh(new ConeGeometry(0.13, 0.32, 4), this.mat(0xffffff));
-        this.orientArrow(ar, m.dir);
-        ar.position.y = MACH_H + 0.04;
-        g.add(ar);
-      }
-      const label = this.makeLabel(def.short);
+    // The renderer still owns the label sprite (added for every non-belt machine).
+    if (m.type !== 'conveyor') {
+      const label = this.makeLabel(DEFS[m.type].short);
       label.position.y = MACH_H + 0.55;
       label.visible = this.explain;
       label.userData.isLabel = true;
       g.add(label);
     }
-    return { group: g, type: m.type, dir: m.dir, body };
+    return { group: g, type: m.type, dir: m.dir, body: built.body, anim: built.anim };
   }
 
   // ---- packets ----
@@ -472,7 +364,7 @@ export class Renderer {
 
   private frame(): void {
     if (!this.snap) {
-      this.renderer.render(this.scene, this.camera);
+      this.postfx.render();
       return;
     }
     const now = performance.now();
@@ -522,11 +414,13 @@ export class Renderer {
     }
     if (!this.snap.paused) this.beltTex.offset.y = (this.beltTex.offset.y - dt * 0.9 + 1) % 1;
 
-    // busy machines pulse their emissive
+    // busy machines pulse their emissive + run any model anim hook
     const pulse = 0.4 + 0.4 * Math.abs(Math.sin(now * 0.006));
     for (const m of this.snap.modules) {
       const e = this.modMap.get(m.cell);
-      if (!e?.body) continue;
+      if (!e) continue;
+      e.anim?.(dt, now, !!m.busy);
+      if (!e.body) continue;
       const mat = e.body.material as MeshStandardMaterial;
       if (m.busy) {
         mat.emissive.setHex(DEFS[m.type].color);
@@ -536,7 +430,13 @@ export class Renderer {
       }
     }
 
-    this.renderer.render(this.scene, this.camera);
+    // transient effects layer (no-op stub for now)
+    const w = this.snap.w;
+    this.effects.update(dt, now, this.snap, {
+      cellToWorld: (cell: number) => ({ x: (cell % w) + 0.5, z: Math.floor(cell / w) + 0.5 }),
+    });
+
+    this.postfx.render();
   }
 
   /** Pointer (canvas CSS px) -> grid cell via raycast onto the ground plane. */
