@@ -15,8 +15,10 @@ that will catch it.
   balance here, not in code.
 - **`world.ts`** — the `World` class: grid, `modules`, `ore`, `packets`, `inventory`, `unlocked`,
   `research`, `upgrades`. `advance()` = exactly one tick. Belts use **sub-tile slots** (`SLOTS=4`),
-  items move ≤1 slot/tick (the `movedThisTick` guard prevents the teleport bug). A `CONVERTERS`
-  config generalizes smelter + assembler (in→out over time); the Lab consumes science into research
+  items move ≤1 slot/tick (the `movedThisTick` guard prevents the teleport bug). The `RECIPES`
+  table (in `data.ts`) drives smelter + assembler (inputs→output over time); each machine instance
+  has a `recipeId` and a multi-input `inBuf: Map<ItemType, number>`. `selectRecipe()` switches a
+  machine's recipe (gated by `unlocked`). The Lab consumes science into research
   progress. `place()` validates unlock + cost + deducts; `placeRaw()` bypasses (seed base / load).
   `collect()` moves the shared `storage` pool into `inventory`. Upgrades scale rates via
   upgrade-aware locals computed each `advance()`.
@@ -27,7 +29,10 @@ that will catch it.
 ## Common changes
 - **New item:** extend `ItemType` (types.ts) + colors/labels + `START_INVENTORY` (data.ts).
 - **New machine:** extend `ModuleType` (types.ts) + `DEFS` + `BUILD_COSTS` (data.ts) + behavior in
-  `world.ts` (a `CONVERTERS` entry if it's an in→out converter) + snapshot its `ModuleView` fields.
+  `world.ts` (add a `RECIPES` entry + machine in its `machines` list if it's an in→out converter) +
+  snapshot its `ModuleView` fields.
+- **New recipe:** add to `RECIPES` (data.ts) with a `RecipeId`; gate it via a tech's `unlocks` (the
+  recipe ID string) so `selectRecipe` allows switching once researched.
 - **New tech/upgrade:** add to `TECHS` (data.ts), apply its `unlocks`/`upgrade` in
   `world.completeResearch` / the upgrade-aware rate locals.
 - After any change run the suites: `npx tsx tests/economy.test.ts tests/research.test.ts tests/placement.test.ts` (each is its own `npx tsx` run) and keep the determinism assertion green.
