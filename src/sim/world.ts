@@ -1,5 +1,5 @@
 import { DX, DY, type Dir, type ItemType, type ModuleType, type ModuleView, type SaveState, type Snapshot } from './types';
-import { BUILD_COSTS, START_INVENTORY, START_UNLOCKED } from './data';
+import { BUILD_COSTS, START_INVENTORY, START_UNLOCKED, TECHS, type UpgradeId } from './data';
 
 // Deterministic, integer-only, tick-based simulation. Belts use sub-tile
 // "slots" so items flow continuously and pack densely against each other
@@ -15,6 +15,11 @@ const SMELT_CAP = 4; // ore the smelter can hold
 const MINER_POWER = 2;
 const SMELT_POWER = 3;
 const GEN_POWER = 12;
+
+const CONVERTERS: Partial<Record<ModuleType, { in: ItemType; out: ItemType; time: number; cap: number; power: number }>> = {
+  smelter: { in: 'ore', out: 'plate', time: SMELT_TIME, cap: SMELT_CAP, power: SMELT_POWER },
+  assembler: { in: 'plate', out: 'science', time: 8, cap: 4, power: 3 },
+};
 
 function mulberry32(seed: number): () => number {
   let a = seed;
@@ -54,10 +59,12 @@ export class World {
   packets: Packet[] = [];
   private nextId = 1;
   pulse = 0;
-  storage: Record<ItemType, number> = { ore: 0, plate: 0 };
+  storage: Record<ItemType, number> = { ore: 0, plate: 0, science: 0 };
   power = { produced: 0, used: 0, deficit: false };
   inventory: Record<ItemType, number> = { ...START_INVENTORY };
   unlocked = new Set<ModuleType>(START_UNLOCKED);
+  research: { active: string | null; progress: number; completed: Set<string> } = { active: null, progress: 0, completed: new Set() };
+  upgrades = new Set<UpgradeId>();
 
   cell(x: number, y: number): number {
     return y * this.w + x;
@@ -88,6 +95,35 @@ export class World {
       this.inventory[k] = (this.inventory[k] ?? 0) + this.storage[k];
       this.storage[k] = 0;
     });
+  }
+
+  selectResearch(id: string): void {
+    const tech = TECHS.find((t) => t.id === id);
+    if (!tech || this.research.completed.has(id)) return;
+    if (!tech.prereqs.every((p) => this.research.completed.has(p))) return;
+    this.research.active = id;
+    this.research.progress = 0;
+  }
+
+  contributeResearch(): void {
+    const id = this.research.active;
+    if (!id) return;
+    const tech = TECHS.find((t) => t.id === id)!;
+    const have = this.inventory[tech.costItem] ?? 0;
+    const need = tech.cost - this.research.progress;
+    const take = Math.min(have, need);
+    this.inventory[tech.costItem] -= take;
+    this.research.progress += take;
+    if (this.research.progress >= tech.cost) this.completeResearch(tech.id);
+  }
+
+  private completeResearch(id: string): void {
+    const tech = TECHS.find((t) => t.id === id)!;
+    this.research.completed.add(id);
+    tech.unlocks?.forEach((b) => this.unlocked.add(b));
+    if (tech.upgrade) this.upgrades.add(tech.upgrade);
+    this.research.active = null;
+    this.research.progress = 0;
   }
 
   remove(c: number): void {
@@ -121,12 +157,14 @@ export class World {
 
   loadDemo(): void {
     this.genWorld();
-    this.storage = { ore: 0, plate: 0 };
+    this.storage = { ore: 0, plate: 0, science: 0 };
     this.power = { produced: 0, used: 0, deficit: false };
     this.pulse = 0;
     this.nextId = 1;
     this.inventory = { ...START_INVENTORY };
     this.unlocked = new Set(START_UNLOCKED);
+    this.research = { active: null, progress: 0, completed: new Set() };
+    this.upgrades = new Set();
     const y = 13;
     this.placeRaw(this.cell(20, 11), 'generator', 1);
     this.placeRaw(this.cell(20, y), 'miner', 1);
@@ -141,11 +179,13 @@ export class World {
   loadSave(s: SaveState): void {
     this.genWorld();
     this.nextId = 1;
-    this.storage = { ore: s.storage.ore ?? 0, plate: s.storage.plate ?? 0 };
+    this.storage = { ore: s.storage.ore ?? 0, plate: s.storage.plate ?? 0, science: 0 };
     this.pulse = s.pulse ?? 0;
     this.power = { produced: 0, used: 0, deficit: false };
     this.inventory = { ...START_INVENTORY };
     this.unlocked = new Set(START_UNLOCKED);
+    this.research = { active: null, progress: 0, completed: new Set() };
+    this.upgrades = new Set();
     for (const m of s.modules) this.placeRaw(m.cell, m.type, m.dir);
   }
 
@@ -199,8 +239,16 @@ export class World {
               movedThisTick.add(p.id);
               moved = true;
             }
-          } else if (tmod.type === 'smelter') {
-            if (p.item === 'ore' && tmod.inBuf < SMELT_CAP) {
+          } else if (CONVERTERS[tmod.type]) {
+            const cfg = CONVERTERS[tmod.type]!;
+            if (p.item === cfg.in && tmod.inBuf < cfg.cap) {
+              tmod.inBuf++;
+              removed.add(p.id);
+              occ.delete(here);
+              moved = true;
+            }
+          } else if (tmod.type === 'lab') {
+            if (p.item === 'science' && tmod.inBuf < 6) {
               tmod.inBuf++;
               removed.add(p.id);
               occ.delete(here);
@@ -217,9 +265,14 @@ export class World {
     }
     if (removed.size) this.packets = this.packets.filter((p) => !removed.has(p.id));
 
-    // Power: generators produce; miners (only on ore) and smelters draw.
+    // Upgrade-aware rate locals.
+    const minerPeriod = this.upgrades.has('miner_speed') ? 0 : MINER_PERIOD;
+    const genPower = this.upgrades.has('gen_output') ? Math.round(GEN_POWER * 1.5) : GEN_POWER;
+    const smeltTime = this.upgrades.has('smelter_speed') ? Math.max(1, Math.round(SMELT_TIME / 1.5)) : SMELT_TIME;
+
+    // Power: generators produce; miners (only on ore) and converters draw.
     let produced = 0;
-    for (const m of this.modules.values()) if (m.type === 'generator') produced += GEN_POWER;
+    for (const m of this.modules.values()) if (m.type === 'generator') produced += genPower;
     let budget = produced;
     let desired = 0;
     const cells = [...this.modules.keys()].sort((a, b) => a - b);
@@ -235,9 +288,12 @@ export class World {
           wants = true;
           draw = MINER_POWER;
         }
-      } else if (m.type === 'smelter' && m.inBuf > 0 && m.progress < SMELT_TIME) {
-        wants = true;
-        draw = SMELT_POWER;
+      } else if (CONVERTERS[m.type]) {
+        const cfgTime = m.type === 'smelter' ? smeltTime : CONVERTERS[m.type]!.time;
+        if (m.inBuf > 0 && m.progress < cfgTime) {
+          wants = true;
+          draw = CONVERTERS[m.type]!.power;
+        }
       }
       if (wants) {
         desired += draw;
@@ -259,15 +315,17 @@ export class World {
           if (out >= 0 && this.modules.get(out)?.type === 'conveyor' && !occ.has(this.microKey(out, 0))) {
             this.packets.push({ id: this.nextId++, item: 'ore', cell: out, slot: 0, prevCell: out, prevSlot: 0 });
             occ.add(this.microKey(out, 0));
-            m.cooldown = MINER_PERIOD;
+            m.cooldown = minerPeriod;
             m.busy = true;
           }
         }
-      } else if (m.type === 'smelter') {
+      } else if (CONVERTERS[m.type]) {
+        const cfg = CONVERTERS[m.type]!;
+        const time = m.type === 'smelter' ? smeltTime : cfg.time;
         if (worked.has(c)) {
           m.busy = true;
           m.progress++;
-          if (m.progress >= SMELT_TIME) {
+          if (m.progress >= time) {
             m.progress = 0;
             m.inBuf--;
             m.outBuf++;
@@ -276,10 +334,19 @@ export class World {
         if (m.outBuf > 0) {
           const out = this.neighbor(c, m.dir);
           if (out >= 0 && this.modules.get(out)?.type === 'conveyor' && !occ.has(this.microKey(out, 0))) {
-            this.packets.push({ id: this.nextId++, item: 'plate', cell: out, slot: 0, prevCell: out, prevSlot: 0 });
+            this.packets.push({ id: this.nextId++, item: cfg.out, cell: out, slot: 0, prevCell: out, prevSlot: 0 });
             occ.add(this.microKey(out, 0));
             m.outBuf--;
           }
+        }
+      } else if (m.type === 'lab') {
+        const id = this.research.active;
+        const tech = id ? TECHS.find((t) => t.id === id) : undefined;
+        if (m.inBuf > 0 && tech && tech.costItem === 'science' && this.research.progress < tech.cost) {
+          m.inBuf--;
+          m.busy = true;
+          this.research.progress++;
+          if (this.research.progress >= tech.cost) this.completeResearch(tech.id);
         }
       }
     }
@@ -310,6 +377,14 @@ export class World {
           v.buffer = m.inBuf;
           v.out = m.outBuf;
           v.busy = m.busy;
+        } else if (m.type === 'assembler') {
+          v.progress = m.progress / CONVERTERS.assembler!.time;
+          v.buffer = m.inBuf;
+          v.out = m.outBuf;
+          v.busy = m.busy;
+        } else if (m.type === 'lab') {
+          v.buffer = m.inBuf;
+          v.busy = m.busy;
         } else if (m.type === 'miner') {
           v.busy = m.busy;
         } else if (m.type === 'generator') {
@@ -327,6 +402,7 @@ export class World {
       ore: [...this.ore],
       inventory: { ...this.inventory },
       unlocked: [...this.unlocked],
+      research: { active: this.research.active, progress: this.research.progress, completed: [...this.research.completed] },
     };
   }
 }

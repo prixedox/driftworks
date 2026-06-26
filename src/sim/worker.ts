@@ -70,6 +70,11 @@ ctx.onmessage = (e: MessageEvent<Command>) => {
       world.collect();
       post();
       break;
+    case 'research':
+      if (cmd.action === 'select') world.selectResearch(cmd.tech);
+      else world.contributeResearch();
+      post();
+      break;
     case 'speed':
       pulseMs = cmd.pulseMs;
       break;

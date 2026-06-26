@@ -20,11 +20,11 @@ export interface Hotbar {
   setSpeed: (ms: number) => void;
 }
 
-const TOOLS: Tool[] = ['miner', 'conveyor', 'smelter', 'storage', 'generator', 'erase', 'inspect'];
+const TOOLS: Tool[] = ['miner', 'conveyor', 'smelter', 'storage', 'generator', 'assembler', 'lab', 'erase', 'inspect'];
 const DIR_GLYPH = ['↑', '→', '↓', '←'];
 const ICON_KEY: Record<Tool, string> = {
   miner: 'miner', conveyor: 'conveyor', smelter: 'smelter', storage: 'storage',
-  generator: 'generator', erase: 'erase', inspect: 'inspect',
+  generator: 'generator', assembler: 'assembler', lab: 'lab', erase: 'erase', inspect: 'inspect',
 };
 const labelOf = (t: Tool) => (t === 'erase' ? 'Erase' : t === 'inspect' ? 'Info' : DEFS[t].label);
 
