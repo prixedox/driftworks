@@ -38,6 +38,7 @@ Sim ⇄ main talk only through `Command` / `Snapshot` (defined in `src/sim/types
 Push to `main` → GitHub Actions (`.github/workflows/deploy.yml`) builds and publishes to Pages. `vite.config.ts` uses `base: './'` so it works under the `/driftworks/` subpath. After a push, the CDN can lag ~1–2 min; confirm the live `index-*.js` hash matches the local `dist/` hash.
 
 ## Docs
+- **`docs/ROADMAP.md`** — long-range game roadmap & design vision (UX, UI, research, biomes, endgame, multiplayer, tech). The default direction for "what next".
 - Design specs & plans: `docs/superpowers/{specs,plans}/` (this project uses the superpowers brainstorm→spec→plan→subagent-execute flow).
 - `GDD.md` — the game design doc (high level; may lag the code).
 
