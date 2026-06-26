@@ -24,8 +24,18 @@ export function buildStatusBar(root: HTMLElement): StatusBar {
   const ore = chip('ore', '0');
   const plate = chip('plate', '0');
   const science = chip('science', '0');
-  bar.append(pulse.el, powerWrap, ore.el, plate.el, science.el);
+  // Secondary items — hidden until the player has produced some, to keep the bar tidy.
+  const copperOre = chip('copper_ore', '0');
+  const copperPlate = chip('copper_plate', '0');
+  const circuit = chip('circuit', '0');
+  for (const c of [copperOre, copperPlate, circuit]) c.el.style.display = 'none';
+  bar.append(pulse.el, powerWrap, ore.el, plate.el, science.el, copperOre.el, copperPlate.el, circuit.el);
   root.append(bar);
+
+  const showWhenPositive = (c: { el: HTMLElement; value: HTMLElement }, n: number) => {
+    c.value.textContent = String(n);
+    c.el.style.display = n > 0 ? '' : 'none';
+  };
 
   return {
     update(s) {
@@ -37,6 +47,9 @@ export function buildStatusBar(root: HTMLElement): StatusBar {
       ore.value.textContent = String(s.inventory.ore ?? 0);
       plate.value.textContent = String(s.inventory.plate ?? 0);
       science.value.textContent = String(s.inventory.science ?? 0);
+      showWhenPositive(copperOre, s.inventory.copper_ore ?? 0);
+      showWhenPositive(copperPlate, s.inventory.copper_plate ?? 0);
+      showWhenPositive(circuit, s.inventory.circuit ?? 0);
     },
   };
 

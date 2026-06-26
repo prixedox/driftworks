@@ -119,6 +119,21 @@ body {
   font-weight: 700;
 }
 
+.dw-ins-select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  flex: 1;
+}
+.dw-ins-select:focus {
+  outline: 1px solid var(--accent);
+}
+
 .dw-joy-knob {
   position: absolute;
   left: 50%;

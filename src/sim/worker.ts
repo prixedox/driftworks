@@ -75,6 +75,10 @@ ctx.onmessage = (e: MessageEvent<Command>) => {
       else world.contributeResearch();
       post();
       break;
+    case 'select-recipe':
+      world.selectRecipe(cmd.cell, cmd.recipe);
+      post();
+      break;
     case 'speed':
       pulseMs = cmd.pulseMs;
       break;
