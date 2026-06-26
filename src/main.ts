@@ -206,6 +206,7 @@ async function main(): Promise<void> {
   let lastSaved = 0;
   let prevSnap: Snapshot | null = null;
   let lastPlateToast = 0;
+  let lastCopperPlateToast = 0;
   let lastCollect = 0;
   worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
     if (e.data.type !== 'snapshot') return;
@@ -238,6 +239,11 @@ async function main(): Promise<void> {
       if (dPlate > 0 && now - lastPlateToast > 1500) {
         lastPlateToast = now;
         hud.pushToast(`+${dPlate} plate`, 'info');
+      }
+      const dCopperPlate = snap.storage.copper_plate - prevSnap.storage.copper_plate;
+      if (dCopperPlate > 0 && now - lastCopperPlateToast > 1500) {
+        lastCopperPlateToast = now;
+        hud.pushToast(`+${dCopperPlate} copper plate`, 'info');
       }
       if (snap.power.deficit && !prevSnap.power.deficit) hud.pushToast('Low power', 'warn');
     }
