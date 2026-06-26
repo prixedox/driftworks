@@ -7,6 +7,8 @@ export type ModuleType = 'miner' | 'conveyor' | 'smelter' | 'storage' | 'generat
 /** 0 = up, 1 = right, 2 = down, 3 = left. */
 export type Dir = 0 | 1 | 2 | 3;
 
+export type UpgradeId = 'miner_speed' | 'smelter_speed' | 'gen_output';
+
 /** Direction deltas, indexed by Dir. Shared by sim and renderer. */
 export const DX = [0, 1, 0, -1] as const;
 export const DY = [-1, 0, 1, 0] as const;
@@ -53,16 +55,21 @@ export interface Snapshot {
   inventory: Record<ItemType, number>;
   unlocked: ModuleType[];
   research: { active: string | null; progress: number; completed: string[] };
+  upgrades: UpgradeId[];
 }
 
 /** Persistent save (written by the main thread; workers can't use localStorage). */
 export interface SaveState {
-  version: 2;
+  version: 3;
   modules: { cell: number; type: ModuleType; dir: Dir }[];
   storage: Record<ItemType, number>;
   pulse: number;
   /** Player position in tile coordinates. */
   player?: { x: number; y: number };
+  inventory: Record<ItemType, number>;
+  unlocked: ModuleType[];
+  research: { active: string | null; progress: number; completed: string[] };
+  upgrades: UpgradeId[];
 }
 
 /** Commands: main thread -> worker. */

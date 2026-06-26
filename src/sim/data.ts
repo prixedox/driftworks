@@ -1,4 +1,5 @@
-import type { ItemType, ModuleType } from './types';
+import type { ItemType, ModuleType, UpgradeId } from './types';
+export type { UpgradeId } from './types';
 
 export interface BuildCost {
   item: ItemType;
@@ -18,8 +19,6 @@ export const BUILD_COSTS: Record<ModuleType, BuildCost> = {
 export const START_INVENTORY: Record<ItemType, number> = { ore: 40, plate: 0, science: 0 };
 
 export const START_UNLOCKED: ModuleType[] = ['miner', 'conveyor', 'storage'];
-
-export type UpgradeId = 'miner_speed' | 'smelter_speed' | 'gen_output';
 
 export interface Tech {
   id: string;
