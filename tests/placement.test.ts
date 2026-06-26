@@ -3,10 +3,11 @@ import type { Snapshot } from '../src/sim/types';
 
 const base = (over: Partial<Snapshot>): Snapshot => ({
   w: 4, h: 4, pulse: 0, pulseMs: 150, paused: false,
-  modules: [], packets: [], storage: { ore: 0, plate: 0, science: 0 },
-  power: { produced: 0, used: 0, deficit: false }, ore: [],
-  inventory: { ore: 100, plate: 100, science: 0 },
+  modules: [], packets: [], storage: { ore: 0, plate: 0, science: 0, copper_ore: 0, copper_plate: 0, circuit: 0 },
+  power: { produced: 0, used: 0, deficit: false }, ore: [], oreType: [],
+  inventory: { ore: 100, plate: 100, science: 0, copper_ore: 0, copper_plate: 0, circuit: 0 },
   unlocked: ['miner', 'conveyor', 'storage', 'smelter', 'generator'],
+  unlockedRecipes: ['smelt_iron', 'assemble_science'],
   research: { active: null, progress: 0, completed: [] },
   ...over,
 });

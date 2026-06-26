@@ -5,6 +5,12 @@ export interface InspectRow {
   value: string;
   bar?: number; // 0..1 -> renders a fill bar under the row
   icon?: string; // icon key -> renders an icon before the label
+  /** If present, render a <select> with these options instead of a value span. */
+  options?: { value: string; label: string }[];
+  /** The currently selected option value (used when options is set). */
+  selected?: string;
+  /** Callback when the user picks an option. */
+  onChange?: (value: string) => void;
 }
 export interface Inspector {
   show(title: string, rows: InspectRow[]): void;
@@ -42,10 +48,25 @@ export function buildInspector(root: HTMLElement, onClose: () => void): Inspecto
         k.className = 'dw-ins-k';
         if (r.icon) k.append(svgEl(r.icon));
         k.append(document.createTextNode(r.label));
-        const v = document.createElement('span');
-        v.className = 'dw-ins-v';
-        v.textContent = r.value;
-        row.append(k, v);
+        row.append(k);
+        if (r.options && r.options.length > 0) {
+          const sel = document.createElement('select');
+          sel.className = 'dw-ins-select';
+          for (const opt of r.options) {
+            const o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            if (opt.value === r.selected) o.selected = true;
+            sel.append(o);
+          }
+          sel.addEventListener('change', () => r.onChange?.(sel.value));
+          row.append(sel);
+        } else {
+          const v = document.createElement('span');
+          v.className = 'dw-ins-v';
+          v.textContent = r.value;
+          row.append(v);
+        }
         body.append(row);
         if (r.bar != null) {
           const bar = document.createElement('div');

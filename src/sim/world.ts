@@ -471,6 +471,7 @@ export class World {
       unlocked: [...this.unlocked].filter((k): k is ModuleType =>
         ['miner', 'conveyor', 'smelter', 'storage', 'generator', 'assembler', 'lab'].includes(k),
       ),
+      unlockedRecipes: [...this.unlocked].filter((k) => RECIPES.some((r) => r.id === k)),
       research: { active: this.research.active, progress: this.research.progress, completed: [...this.research.completed] },
     };
   }

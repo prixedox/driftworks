@@ -87,6 +87,7 @@ const snap: Snapshot = {
   oreType: ore.map(() => 'iron' as const),
   inventory: { ore: 0, plate: 0, science: 0, copper_ore: 0, copper_plate: 0, circuit: 0 },
   unlocked: ['miner', 'conveyor', 'smelter', 'storage', 'generator', 'assembler', 'lab'],
+  unlockedRecipes: ['smelt_iron', 'assemble_science'],
   research: { active: null, progress: 0, completed: [] },
 };
 

@@ -3,6 +3,7 @@ import './style.css';
 import { Renderer } from './render/renderer';
 import { buildHud } from './ui/hud';
 import { placementValid } from './ui/placement';
+import { RECIPES } from './sim/data';
 import type { Command, Dir, ModuleType, SaveState, Snapshot, WorkerMessage } from './sim/types';
 
 const SAVE_KEY = 'driftworks.save.v2';
@@ -18,8 +19,22 @@ function readSave(): SaveState | null {
   }
 }
 
+type DescribeRow = {
+  label: string;
+  value: string;
+  bar?: number;
+  icon?: string;
+  options?: { value: string; label: string }[];
+  selected?: string;
+  onChange?: (v: string) => void;
+};
+
 /** Build the inspector contents for the machine at `cell`, or null if empty. */
-function describe(cell: number, s: Snapshot): { title: string; rows: { label: string; value: string; bar?: number; icon?: string }[] } | null {
+function describe(
+  cell: number,
+  s: Snapshot,
+  onSelectRecipe: (cell: number, recipe: string) => void,
+): { title: string; rows: DescribeRow[] } | null {
   const m = s.modules.find((mm) => mm.cell === cell);
   if (!m) return null;
   const dirName = ['North', 'East', 'South', 'West'][m.dir];
@@ -33,16 +48,29 @@ function describe(cell: number, s: Snapshot): { title: string; rows: { label: st
           { label: 'Science', value: String(s.storage.science), icon: 'science' },
         ],
       };
-    case 'smelter':
+    case 'smelter': {
+      const smelterRecipes = RECIPES
+        .filter((r) => r.machines.includes('smelter') && s.unlockedRecipes.includes(r.id))
+        .map((r) => ({ value: r.id, label: r.name }));
+      const currentRecipeId = m.recipe ?? 'smelt_iron';
+      const currentRecipe = RECIPES.find((r) => r.id === currentRecipeId);
       return {
         title: 'Smelter',
         rows: [
-          { label: 'Ore waiting', value: String(m.buffer ?? 0) },
+          {
+            label: 'Recipe',
+            value: currentRecipe?.name ?? '?',
+            options: smelterRecipes.length > 1 ? smelterRecipes : undefined,
+            selected: currentRecipeId,
+            onChange: (v) => onSelectRecipe(cell, v),
+          },
+          { label: 'Input waiting', value: String(m.buffer ?? 0) },
           { label: 'Progress', value: `${Math.round((m.progress ?? 0) * 100)}%`, bar: m.progress ?? 0 },
-          { label: 'Plates ready', value: String(m.out ?? 0) },
+          { label: 'Output ready', value: String(m.out ?? 0) },
           { label: 'Status', value: m.busy ? 'smelting' : 'idle' },
         ],
       };
+    }
     case 'miner': {
       const onOre = s.ore.includes(cell);
       return {
@@ -60,16 +88,29 @@ function describe(cell: number, s: Snapshot): { title: string; rows: { label: st
     }
     case 'conveyor':
       return { title: 'Conveyor belt', rows: [{ label: 'Direction', value: dirName }] };
-    case 'assembler':
+    case 'assembler': {
+      const assemblerRecipes = RECIPES
+        .filter((r) => r.machines.includes('assembler') && s.unlockedRecipes.includes(r.id))
+        .map((r) => ({ value: r.id, label: r.name }));
+      const currentRecipeId = m.recipe ?? 'assemble_science';
+      const currentRecipe = RECIPES.find((r) => r.id === currentRecipeId);
       return {
         title: 'Assembler',
         rows: [
-          { label: 'Plate waiting', value: String(m.buffer ?? 0) },
+          {
+            label: 'Recipe',
+            value: currentRecipe?.name ?? '?',
+            options: assemblerRecipes.length > 1 ? assemblerRecipes : undefined,
+            selected: currentRecipeId,
+            onChange: (v) => onSelectRecipe(cell, v),
+          },
+          { label: 'Input waiting', value: String(m.buffer ?? 0) },
           { label: 'Progress', value: `${Math.round((m.progress ?? 0) * 100)}%`, bar: m.progress ?? 0 },
-          { label: 'Science ready', value: String(m.out ?? 0) },
+          { label: 'Output ready', value: String(m.out ?? 0) },
           { label: 'Status', value: m.busy ? 'assembling' : 'idle' },
         ],
       };
+    }
     case 'lab':
       return {
         title: 'Lab',
@@ -116,6 +157,7 @@ async function main(): Promise<void> {
 
   const selectResearch = (tech: string) => send({ type: 'research', action: 'select', tech });
   const contributeResearch = () => send({ type: 'research', action: 'contribute' });
+  const selectRecipeCmd = (cell: number, recipe: string) => send({ type: 'select-recipe', cell, recipe });
 
   const hud = buildHud(root, {
     selectTool: (t) => {
@@ -155,6 +197,7 @@ async function main(): Promise<void> {
     },
     selectResearch,
     contributeResearch,
+    selectRecipe: selectRecipeCmd,
   });
   hud.setDir(dir);
   hud.setSpeed(SPEEDS[speedIdx]);
@@ -207,7 +250,7 @@ async function main(): Promise<void> {
 
   const refreshInspect = () => {
     if (inspectCell == null || !latest) return;
-    const info = describe(inspectCell, latest);
+    const info = describe(inspectCell, latest, selectRecipeCmd);
     if (!info) {
       inspectCell = null;
       hud.hideInspect();

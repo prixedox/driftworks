@@ -20,6 +20,8 @@ export interface HudCallbacks {
   reset: () => void;
   selectResearch: (tech: string) => void;
   contributeResearch: () => void;
+  /** Forward-compat hook for recipe changes; inspector rows currently call the sim directly. */
+  selectRecipe: (cell: number, recipe: string) => void;
 }
 export interface Hud {
   setStats: (s: Snapshot) => void;

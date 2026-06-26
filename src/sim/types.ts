@@ -58,6 +58,8 @@ export interface Snapshot {
   oreType: OreType[];
   inventory: Record<ItemType, number>;
   unlocked: ModuleType[];
+  /** Recipe IDs the player has unlocked (via research). */
+  unlockedRecipes: string[];
   research: { active: string | null; progress: number; completed: string[] };
 }
 
