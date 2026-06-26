@@ -1,8 +1,8 @@
 // Shared contract between the main thread (render/UI) and the sim worker.
 // Keep this file dependency-free so both sides can import it cheaply.
 
-export type ItemType = 'ore' | 'plate';
-export type ModuleType = 'miner' | 'conveyor' | 'smelter' | 'storage' | 'generator';
+export type ItemType = 'ore' | 'plate' | 'science';
+export type ModuleType = 'miner' | 'conveyor' | 'smelter' | 'storage' | 'generator' | 'assembler' | 'lab';
 
 /** 0 = up, 1 = right, 2 = down, 3 = left. */
 export type Dir = 0 | 1 | 2 | 3;
@@ -52,6 +52,7 @@ export interface Snapshot {
   ore: number[];
   inventory: Record<ItemType, number>;
   unlocked: ModuleType[];
+  research: { active: string | null; progress: number; completed: string[] };
 }
 
 /** Persistent save (written by the main thread; workers can't use localStorage). */
@@ -73,7 +74,9 @@ export type Command =
   | { type: 'remove'; cell: number }
   | { type: 'pause'; paused: boolean }
   | { type: 'speed'; pulseMs: number }
-  | { type: 'collect' };
+  | { type: 'collect' }
+  | { type: 'research'; action: 'select'; tech: string }
+  | { type: 'research'; action: 'contribute' };
 
 /** Messages: worker -> main thread. */
 export type WorkerMessage = { type: 'snapshot'; snapshot: Snapshot };
@@ -90,16 +93,20 @@ export const DEFS: Record<ModuleType, ModuleDef> = {
   smelter: { label: 'Smelter', short: 'MELT', color: 0xc0392b },
   storage: { label: 'Storage', short: 'BOX', color: 0x2e7d57 },
   generator: { label: 'Generator', short: 'PWR', color: 0xb59a2e },
+  assembler: { label: 'Assembler', short: 'ASM', color: 0x7b5cc0 },
+  lab: { label: 'Lab', short: 'LAB', color: 0x3f7fd0 },
 };
 
 export const ITEM_COLOR: Record<ItemType, number> = {
   ore: 0xe8a35a,
   plate: 0x8fd0ff,
+  science: 0xc55cff,
 };
 
 export const ITEM_LABEL: Record<ItemType, string> = {
   ore: 'Ore',
   plate: 'Plate',
+  science: 'Science',
 };
 
 /** Short plain-language caption shown under each machine in "Explain" mode. */
@@ -109,4 +116,6 @@ export const EXPLAIN: Record<ModuleType, string> = {
   conveyor: 'Carries',
   smelter: 'Ore → Plate',
   storage: 'Stores',
+  assembler: 'Plate → Science',
+  lab: 'Research',
 };
