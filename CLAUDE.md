@@ -39,6 +39,7 @@ Push to `main` → GitHub Actions (`.github/workflows/deploy.yml`) builds and pu
 
 ## Docs
 - **`docs/ROADMAP.md`** — long-range game roadmap & design vision (UX, UI, research, biomes, endgame, multiplayer, tech). The default direction for "what next".
+- **`docs/superpowers/plans/PLAN-INDEX.md`** — index of ready-to-run feature plans (save v3, copper/circuits, build UX, stats/minimap, settings, onboarding, CI/determinism) + a conflict map and the order/worktree strategy for running multiple agents without collisions.
 - Design specs & plans: `docs/superpowers/{specs,plans}/` (this project uses the superpowers brainstorm→spec→plan→subagent-execute flow).
 - `GDD.md` — the game design doc (high level; may lag the code).
 
