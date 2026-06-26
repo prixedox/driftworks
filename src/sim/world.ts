@@ -181,13 +181,21 @@ export class World {
   loadSave(s: SaveState): void {
     this.genWorld();
     this.nextId = 1;
-    this.storage = { ore: s.storage.ore ?? 0, plate: s.storage.plate ?? 0, science: 0 };
+    this.storage = { ore: s.storage.ore ?? 0, plate: s.storage.plate ?? 0, science: s.storage.science ?? 0 };
     this.pulse = s.pulse ?? 0;
     this.power = { produced: 0, used: 0, deficit: false };
-    this.inventory = { ...START_INVENTORY };
-    this.unlocked = new Set(START_UNLOCKED);
-    this.research = { active: null, progress: 0, completed: new Set() };
-    this.upgrades = new Set();
+    this.inventory = {
+      ore: s.inventory.ore ?? START_INVENTORY.ore,
+      plate: s.inventory.plate ?? START_INVENTORY.plate,
+      science: s.inventory.science ?? START_INVENTORY.science,
+    };
+    this.unlocked = new Set(s.unlocked.length > 0 ? s.unlocked : START_UNLOCKED);
+    this.research = {
+      active: s.research.active ?? null,
+      progress: s.research.progress ?? 0,
+      completed: new Set(s.research.completed ?? []),
+    };
+    this.upgrades = new Set(s.upgrades ?? []);
     for (const m of s.modules) this.placeRaw(m.cell, m.type, m.dir);
   }
 
@@ -406,6 +414,7 @@ export class World {
       inventory: { ...this.inventory },
       unlocked: [...this.unlocked],
       research: { active: this.research.active, progress: this.research.progress, completed: [...this.research.completed] },
+      upgrades: [...this.upgrades],
     };
   }
 }
