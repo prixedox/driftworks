@@ -19,6 +19,17 @@ first Horizon-2 step). Each plan is self-contained and formatted for execution v
 **Status:** #1 (CI/determinism), #2 (save v3), #3 (copper/circuits/recipes) are **shipped** (built in
 parallel worktrees, merged to `main` in order #1→#2→#3, live). #4–#7 remain to do.
 
+## The master plan (DRIFTWORKS 1.0)
+
+**`2026-07-05-driftworks-1.0-master-plan.md`** is the A-to-Z plan for shipping the complete
+game (spec: `../specs/2026-07-05-driftworks-1.0-full-game-design.md`). Eleven sequential,
+independently-shippable phases: Phase 1 **absorbs plans #4–#7 by reference** (execute them as
+its sub-plans), then tooltips/UI v2 → chunked seeded world + 5 biomes + save v4 → full item
+economy + tech tree v2 → fluids → power network → threat layer (Wanderer/Drifter) →
+exploration/POIs → Ark endgame + menu/slots/offline → audio → release (perf/PWA/a11y/balance/
+docs/1.0 tag). Execute one phase at a time; every phase ends merged, tested, deployed, and
+live-verified. Supersedes the "recommended order" below once started.
+
 (Earlier, for reference: `2026-06-25-ui-ux-redesign.md`, `2026-06-25-economy-research.md`.)
 
 ## Conflict map (why you can't naively run all 7 at once)
