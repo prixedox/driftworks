@@ -108,6 +108,14 @@ grants exist (`economy_graph` enforces).
 **Files:** Modify `src/sim/types.ts`, `src/sim/data.ts`, `src/ui/icons.ts`,
 `tests/recipes.test.ts`, `tests/blocked.test.ts` (Record growth).
 
+- [ ] **Step 0 — `BuildCost` → `BuildCost[]` migration (do FIRST).** Splitter/underground
+  introduce multi-item costs; `BUILD_COSTS` becomes `Record<ModuleType, BuildCost[]>`.
+  Touches: `place()` (check+deduct all rows), erase refund + `undo()` (refund all rows),
+  blueprint `paste()` affordability, `placementValid`, hotbar cost label (render
+  icon+n per row), codex `uses` walk, and any test reading `.amount` directly. Migrate
+  existing 7 costs to one-element arrays; run the full suite green BEFORE adding items.
+  (Flagged in the data bible §3/§12.)
+
 - [ ] Extend `ItemType`; add all `ITEM_COLOR`/`ITEM_LABEL`/`ITEM_INFO`/`START_INVENTORY`
   rows (zeros; keep `ore: 40`). tsc now forces every `Record<ItemType, …>` across the
   codebase to grow — fix each (statusbar shows only ore/plate/science + any nonzero item:

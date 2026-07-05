@@ -86,6 +86,13 @@ GitHub Actions → Pages · PWA. No backend, no new runtime deps without strong 
 > **Evidence base:** the spec's §9 research addendum records why several tasks below exist
 > (mid-game drop-off at tiers 2–3, first-session pacing targets, QoL canon, IndexedDB saves,
 > distribution funnel). Read it before re-scoping anything.
+>
+> **Canonical numbers:** every tunable (items, recipes, tech costs, build costs, biome/
+> enemy/power/threat constants) is consolidated in
+> `../specs/2026-07-05-driftworks-1.0-content-data.md` — the data bible. On any numeric
+> conflict between it and a phase table below, **the data bible wins**; its §12 also lists
+> known cross-phase consistency notes (BuildCost[] migration, GEN_OUTPUT supersede, the
+> removed `circuits` tech).
 
 ---
 

@@ -41,6 +41,10 @@ live-verified. Supersedes the "recommended order" below once started.
 · `phases/phase-12-launch-distribution.md`. (Phase 1 = plans #4–#7 above.) Each starts with
 a **Pre-flight reality check** — run it at phase kickoff and patch drift before executing.
 
+**Canonical tunables:** `../specs/2026-07-05-driftworks-1.0-content-data.md` (the data
+bible) — every item/recipe/tech/cost/constant in one place, with landing phases and
+cross-phase consistency notes. It wins numeric conflicts with any plan.
+
 (Earlier, for reference: `2026-06-25-ui-ux-redesign.md`, `2026-06-25-economy-research.md`.)
 
 ## Conflict map (why you can't naively run all 7 at once)
