@@ -187,6 +187,15 @@ feeds the stats panel graph.
   machine → name, description, cost/recipe, current rates, and "what's blocking this"
   (no power / no input / output full / no recipe). Replaces ad-hoc labels; the dead `EXPLAIN`
   map is folded in as the tooltip's plain-language line and removed as a separate mode.
+  Recipe tooltips include **ratio hints** ("2 miners feed 1 smelter") computed from the data
+  tables — throughput math is the genre's core mastery loop; surface it, don't hide it.
+- **Alt-overlay** (the genre's most-loved readability feature): a HUD toggle that draws each
+  machine's recipe-output icon above it as a billboard, so a whole base reads at a glance.
+- **Pipette**: long-press a placed machine with no tool armed → arms that module type (and
+  recipe, for paste-with-settings via blueprints) as the active build tool.
+- **Recipe codex**: a searchable "how do I make X / what uses X" panel (FNEI-style) generated
+  from `RECIPES` — every item links to its producers and consumers. Kills the #1 mid-game
+  confusion ("where does this come from?") with zero content cost.
 - **Onboarding**: first-run, step-gated tutorial (existing plan #7) extended to cover power,
   research, map, and mode basics; skippable, replayable from Help. **Objective chip** shows
   the current goal (tutorial step → suggested tech → Ark stage).
@@ -229,6 +238,12 @@ fanfare. All volumes in Settings; muted when tab hidden. Assets budgeted < 4 MB 
   state, 3 slots + migration from v3 (v3 saves land in slot 1, Wanderer, legacy fixed-map
   converted or offered a fresh start — decision: **fresh world, inventory/research carried
   over**, clearly messaged once).
+- **Save storage hardening** (web-platform best practice; localStorage is quota-tight and
+  evictable): saves move to **IndexedDB** with a localStorage read-only migration path;
+  `navigator.storage.persist()` requested once meaningful progress exists; **A/B rotating
+  autosaves** per slot (corruption in one write never loses the slot); **export/import** a
+  save as a compressed base64 string (share/backup/device transfer — and the only "cloud
+  save" a backend-less game can offer).
 - **Snapshot windowing**: with a 256×256 world the snapshot sends (a) the visible window of
   modules/packets/terrain around the player, (b) global aggregates (inventory, power, research,
   alerts, stats), (c) a low-res minimap layer (per-chunk summaries). Commands unchanged.
@@ -243,7 +258,18 @@ fanfare. All volumes in Settings; muted when tab hidden. Assets budgeted < 4 MB 
 - **Docs**: README rewritten (player quickstart + dev guide + architecture), CLAUDE.md files
   updated per phase, CHANGELOG.md started at 1.0.
 
-## 7. Explicit cuts & guardrails
+## 7. Distribution & launch (in scope — no backend needed)
+
+GitHub Pages stays the canonical home, but web games live or die on portals: 1.0 launches
+with an **itch.io page** (embed or link, tags tuned for discoverability), submissions to
+**Poki and CrazyGames** (both evaluate before SDK integration; Poki's playtesting tooling is
+useful even pre-acceptance), a **press-kit page** (GIFs, screenshots, one-paragraph pitch),
+and showcase posts to the automation communities (r/BaseBuildingGames, r/incremental_games,
+r/WebGames) — the exact funnel that took shapez.io from web demo to a $1M hit. In-game:
+a "Send feedback" link (GitHub issues) and a **privacy-respecting, opt-in-free page-view
+counter only** (no player analytics, no tracking — consistent with "zero dark patterns").
+
+## 8. Explicit cuts & guardrails
 
 - No trains in 1.0 (ROADMAP lists them as H3/4 stretch; the rover + belt tiers cover long-haul).
   No inserters (machines keep auto-I/O — mobile legibility). No enemy nests expansion sim
@@ -251,3 +277,40 @@ fanfare. All volumes in Settings; muted when tab hidden. Assets budgeted < 4 MB 
 - Every phase ships independently behind the existing deploy gate (`ci` job green).
 - Scope risk is the #1 risk: each phase in the master plan is a shippable game improvement;
   if 1.0 must ship early, cut from the back (Prestige → rover → weather polish → audio depth).
+
+## 9. Research addendum (2026-07-05) — what the evidence says, and what changed
+
+Findings from a design-research pass over the genre and the web platform, and the decisions
+they drove (all already folded into the sections above and the master plan):
+
+1. **The genre's killer is mid-game drop-off, not the first minutes.** Factorio's own forum
+   analysis: **62.6% of players never reach blue science** — they quit at the second/third
+   tier complexity cliff, not the tutorial. → Decisions: the objective chip never goes blank
+   after the tutorial (it always suggests the next tech/goal); the **recipe codex** and
+   **ratio hints** exist precisely for tiers 2–3; the fluids tier ships with a guided
+   objective sequence when oil unlocks; the balance pass (plan Phase 11) explicitly measures
+   milestone density across tiers 2–3, not just the opening.
+2. **First-session length predicts retention.** Industry data: mean first session ≈ 9 min;
+   games under that see ~20% D1 retention; the first 10 minutes are decisive (Google Play
+   benchmark D1/D7/D30 ≈ 50/20/10 for casual F2P). → Decisions: hard FTUE pacing targets —
+   first placed miner ≤ 2 min, first automated belt line ≤ 8 min, tutorial completable
+   ≤ 12 min — added as Phase-1/11 acceptance criteria.
+3. **Combat is genuinely divisive** (~30% of Factorio's gameplay management is biters;
+   peaceful-mode threads are perennial). → Validates the Wanderer/Wanderer-first bet: the
+   New Game screen visually recommends Wanderer to first-time players; Drifter is framed as
+   "the full pressure" for genre veterans; raids stay heavily telegraphed at Standard.
+4. **A canon of QoL features is table stakes** for genre players: blueprints, undo, map
+   markers, **alt-mode overlay**, **pipette**, copy-settings, recipe browser. The first
+   three were already planned; the last four are now specced (§4). Skipping them reads as
+   amateurish to the exact audience most likely to evangelize the game.
+5. **localStorage is the wrong home for a real save.** Web best practice: IndexedDB above
+   ~1 MB, `navigator.storage.persist()` against eviction, versioned migrations, corruption
+   fallbacks, export/import. A 256×256 world + stats buffers will pass 1 MB. → Save storage
+   hardening added (§6): IndexedDB, persist(), A/B rotation, export strings.
+6. **Offline progress: generosity beats caps for long-progression games**, but a real sim
+   must actually compute ticks. → Keep the 2 h fast-forward cap (perf-bounded, honest),
+   surface it kindly ("your factory kept working for up to 2 h"), keep the cap a `data.ts`
+   constant to retune post-launch.
+7. **Distribution is a design deliverable, not an afterthought.** shapez.io's path (web →
+   portals/itch → community posts) is the proven funnel for exactly this kind of game;
+   portals evaluate builds before SDK work. → New §7 and a new launch phase in the plan.

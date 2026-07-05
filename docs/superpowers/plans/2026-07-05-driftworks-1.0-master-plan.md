@@ -72,6 +72,11 @@ GitHub Actions → Pages · PWA. No backend, no new runtime deps without strong 
 | 9 | Endgame & meta | Ark, victory, Infinite Mode, achievements, main menu, save slots, offline progress | sim, ui, main |
 | 10 | Audio | AudioManager, SFX, per-biome music, settings mix | main, ui, assets |
 | 11 | Release | perf budget, code splitting, PWA, a11y, balance pass, tutorial v2, README/docs, tag 1.0 | all |
+| 12 | Launch & distribution | itch.io page, portal submissions, press kit, community posts, feedback loop | docs, assets (human-gated) |
+
+> **Evidence base:** the spec's §9 research addendum records why several tasks below exist
+> (mid-game drop-off at tiers 2–3, first-session pacing targets, QoL canon, IndexedDB saves,
+> distribution funnel). Read it before re-scoping anything.
 
 ---
 
@@ -98,6 +103,9 @@ execute each **as written**, in this order, treating each as a sub-plan of this 
 **Acceptance:** all four plans' own acceptance criteria; plus: fresh phone load walks through
 tutorial v1; undo reverses a misplaced building with cost refund; stats panel shows a live
 ore/min figure; settings persist across reload (localStorage `dw-settings`, not the save).
+**FTUE pacing targets (stopwatch a real run):** first placed miner ≤ 2 min, first automated
+belt line ≤ 8 min, tutorial completable ≤ 12 min — first-session length predicts retention
+(spec §9.2); if a step drags, cut friction from the step, not depth from the game.
 
 ---
 
@@ -171,11 +179,29 @@ export const ITEM_INFO: Record<ItemType, { desc: string }>;
   (desktop + touch), the loop explained in 6 lines, "replay tutorial" button (re-arms
   tutorial state), link out to the repo. Commit.
 - [ ] **2.8 Remove Explain mode** (hotbar button, `setExplain`, caption sprites in renderer,
-  `EXPLAIN` map) — dead per tooltips. Full gate; visual check; deploy.
+  `EXPLAIN` map) — dead per tooltips. Commit.
+- [ ] **2.9 Alt-overlay** (genre-canon readability, spec §4/§9.4). HUD toggle (hotbar dock
+  button + `V` key): renderer draws each machine's recipe-output item icon as a billboard
+  sprite above it (`setAltOverlay(on)`; sprites pooled, built from `ITEM_COLOR` + icon
+  shapes, culled with the module). Persisted in settings. Visual check at 1k modules
+  (sprite batching, no per-frame allocation). Commit.
+- [ ] **2.10 Pipette.** With no tool armed, long-press (touch) / right-click (desktop; `Q`
+  is taken by camera rotate) on a placed machine arms that module type as the build tool
+  with the machine's `dir` and (via the Phase-1 blueprint plumbing) its recipe. Pure
+  main/UI — no sim change. Toast "Tool picked: Smelter". Commit.
+- [ ] **2.11 Recipe codex + ratio hints.** `src/ui/codex.ts`: searchable item list; each item
+  shows "made by" (recipes producing it, with machine + inputs) and "used in" (recipes/
+  build costs/techs consuming it) — computed once from `RECIPES`/`BUILD_COSTS`/`TECHS` at
+  build time (pure data walk, unit-testable: `tests/codex.test.ts` asserts every item has
+  ≥1 source or is a raw deposit). Tooltips on recipes gain ratio hints: "1 assembler
+  consumes the output of N smelters" computed from `time`/`outputCount`/input amounts —
+  helper `ratioLine(recipe, RECIPES)` in `codex.ts`, unit-tested. Open from: item tooltips'
+  "?" affordance + Help panel. Full gate; visual check; deploy.
 
 **Acceptance:** every interactive HUD element answers "what is this and why can't I use it"
 via hover/long-press; a blocked smelter says why in the inspector; research is a legible
-graph with a working queue; alerts arrive with working beacons; no Explain remnants.
+graph with a working queue; alerts arrive with working beacons; alt-overlay makes a mixed
+base readable at a glance; pipette + codex work on touch; no Explain remnants.
 
 ---
 
@@ -275,7 +301,18 @@ export const DAY_TICKS = 4800;   // ~10 min at 125 ms/tick
   Commit.
 - [ ] **3.6 Spawn & bootstrap rebalance.** Starter base seeding (`placeRaw` chain) uses the
   guaranteed starter deposits; `START_INVENTORY` unchanged. Playtest from scratch to first
-  smelter < 10 min. Full gate; deploy; verify live.
+  smelter < 10 min. Commit.
+- [ ] **3.7 Save storage hardening (spec §6/§9.5).** Create `src/storage.ts` (main thread
+  only): IndexedDB-backed save store (`idb`-free, raw API — one object store `saves`, keys
+  `slot0..2`, values `{a: SaveState, b: SaveState, latest: 'a'|'b'}`), **A/B rotating
+  writes** (alternate targets; on load prefer `latest`, fall back to the sibling if parse/
+  validate fails), one-time migration read from the legacy localStorage key,
+  `navigator.storage.persist()` requested once (after the first research completes — that's
+  "meaningful progress"), and `exportSave(): string` / `importSave(s)` using
+  `CompressionStream('gzip')` + base64 with a `DW4:` prefix (Settings gains Export/Import
+  buttons — import confirms before overwrite). Tests (`tests/storage.test.ts`, run under a
+  fake-indexeddb shim as a devDependency): A/B rotation survives a corrupted `latest`;
+  export→import round-trips; legacy migration. Full gate; deploy; verify live.
 
 **Acceptance:** new game on a phone: seeded 256×256 world, five visibly distinct biomes,
 fog reveals as you walk, map view + minimap agree, deposits deplete visibly in inspector,
@@ -449,10 +486,14 @@ Pumpjack: only on `oil` deposits (Toxic Canopy).
   belts), fill-level tint from `FluidSegmentView`, pumpjack bob animation, refinery/chem
   plant models in `models.ts` (follow existing buildModuleModel patterns). Visual check.
   Commit.
-- [ ] **5.4 UI.** Inspector shows segment fluid/volume on pipes and machine fluid ports;
-  tooltips for the 5 new tools; TECHS rows `oil_processing`, `plastics`, `sci3`,
-  `adv_electronics`, `sci4`, `crystal_refining`, `fuel_tech` go live (grants now exist —
-  `economy_graph.test.ts` proves it). Full gate; deploy; verify live.
+- [ ] **5.4 UI + guided oil objectives.** Inspector shows segment fluid/volume on pipes and
+  machine fluid ports; tooltips for the 5 new tools; TECHS rows `oil_processing`, `plastics`,
+  `sci3`, `adv_electronics`, `sci4`, `crystal_refining`, `fuel_tech` go live (grants now
+  exist — `economy_graph.test.ts` proves it). **Fluids are the genre's tier-3 drop-off cliff
+  (spec §9.1):** when `oil_processing` completes, the objective chip runs a one-time guided
+  sequence (data-driven like TUTORIAL_STEPS): "find oil (map ping on nearest discovered/
+  undiscovered-direction deposit)" → "pumpjack on it" → "pipe to refinery" → "power it" →
+  "first plastic". Dismissible; never repeats. Full gate; deploy; verify live.
 
 **Acceptance:** water + oil pumped, refined, and consumed by automated plastic → adv-circuit
 → science3/science4 chains; pipes visibly fill; blocked machines say `no_fluid`; the full
@@ -587,8 +628,10 @@ export const DIFFICULTY_SCALE = [50, 100, 200];              // % raid size
   badge in statusbar. Military category appears only in Drifter. Visual check. Commit.
 - [ ] **7.4 Mode-select overlay + init/save wiring.** Save v4 gains `mode`/`difficulty`
   (already in the v4 schema — populate now); `_harness.ts` defaults to Wanderer so all prior
-  tests stay green; new-game overlay; TECHS military rows live. Playtest a Standard raid
-  cycle. Full gate; deploy; verify live.
+  tests stay green; new-game overlay — **Wanderer card visually recommended for first-time
+  players** ("Start here" badge; combat is divisive, spec §9.3), Drifter framed as "the full
+  pressure"; TECHS military rows live. Playtest a Standard raid cycle. Full gate; deploy;
+  verify live.
 
 **Acceptance:** in Drifter, a polluting base draws a telegraphed raid that walls+turrets+ammo
 lines repel; losses are repairable; Calm/Standard/Relentless visibly scale; Wanderer shows
@@ -702,9 +745,13 @@ export const ACHIEVEMENTS: AchievementDef[];
 - **Main menu (`menu.ts`):** replaces the Phase-7 overlay. Boot → menu (unless
   `?quick=1`): Continue (most recent slot), 3 slot cards (mode badge, playtime, Ark stage,
   screenshot-free), New Game (mode/difficulty/seed), Settings, How to Play (help panel),
-  Credits. Slots = `dw-save-0/1/2` in localStorage; existing single save migrates to slot 0.
+  Credits. Slots live in the Phase-3.7 IndexedDB store (`src/storage.ts`); the existing
+  single save migrates to slot 0. Slot cards expose Export/Import (storage.ts strings).
 - **Offline progress:** on load, main computes elapsed real ms (persisted `lastSeen`
-  timestamp — main thread MAY read the clock; the sim may not), caps at 2 h of ticks, sends
+  timestamp — main thread MAY read the clock; the sim may not), caps at
+  `OFFLINE_CAP_TICKS` (a `data.ts` constant, initially 2 h of 1× ticks — a deliberate,
+  perf-bounded generosity lever per spec §9.6; the toast says "kept working for up to 2 h"
+  so the cap reads as a feature, not a theft), sends
   `{type:'offline', ticks}`; worker advances in ≤2000-tick slices (yielding between slices to
   keep snapshots flowing), raids suppressed; then a summary toast (items delta, research
   delta). `tests/offline.test.ts`: offline(N) ≡ N manual advances with raids off (hash
@@ -796,10 +843,18 @@ Create `CHANGELOG.md`, `tests/softlock.test.ts`, `tests/replay.test.ts` (extend 
   script still reaches plates; plus DAG guards from `economy_graph.test.ts` stay green).
   Manual playtest calibration against spec targets: first automated science 30–60 min,
   Ark 6–10 h (extrapolated via rates, not a 10-h sit). Tune `data*.ts` only; log every
-  change in the commit body.
-- [ ] **11.6 Tutorial v2.** Extend `TUTORIAL_STEPS` (Phase 1) to teach: tooltips (long-press
-  hint), research queue, map/beacons, power (steam), first raid prep (Drifter only branch),
-  Ark objective intro at sci4. Replayable from Help; steps skippable. Visual check.
+  change in the commit body. **Milestone-density check (spec §9.1 — most genre players quit
+  at tiers 2–3, not the tutorial):** chart minutes-between-unlocks across the whole tech
+  DAG at scripted-playthrough rates; no gap between meaningful unlocks may exceed ~2× the
+  early-game cadence; fix gaps by re-costing techs or adding an achievement/objective
+  beat, never by grind.
+- [ ] **11.6 Tutorial v2 + objective chip never blank.** Extend `TUTORIAL_STEPS` (Phase 1)
+  to teach: tooltips (long-press hint), pipette, codex, research queue, map/beacons, power
+  (steam), first raid prep (Drifter only branch), Ark objective intro at sci4. Replayable
+  from Help; steps skippable. The objective chip gets a fallback chain so it is **never
+  blank** after the tutorial (spec §9.1): active tutorial/guided step → active research →
+  cheapest affordable unresearched tech ("Research X?") → next Ark stage → Infinite-Mode
+  suggestion. Visual check.
 - [ ] **11.7 Replay harness extension.** `tests/replay.test.ts`: record a 5k-tick command
   script covering every command type (place/remove/recipes/research/queue/repair/loot/
   offline/window/reveal) → replay ⇒ identical final hash. This is the co-op/anti-regression
@@ -816,6 +871,49 @@ Create `CHANGELOG.md`, `tests/softlock.test.ts`, `tests/replay.test.ts` (extend 
 the PWA, be taught the loop, automate four science tiers across five biomes, choose cozy or
 threatened play, win via the Ark, and keep playing — at 60 fps, with sound, tooltips on
 everything, no lost saves, and a README that does the game justice.
+
+---
+
+## Phase 12 — Launch & distribution (human-gated where outward-facing)
+
+**Goal:** put 1.0 where players are — the proven web-game funnel (spec §7/§9.7). Agents
+**prepare** everything; **Martin publishes** (portal submissions, community posts, and any
+account-holding action are explicitly human steps — never performed by an agent).
+
+- [ ] **12.1 Capture kit.** Scripted Playwright capture session against the live build:
+  6–8 screenshots (each biome, a dense base, the Ark, the research graph — desktop + phone
+  aspect) and 3 short GIF/WebM loops (Pulse packets flowing, a drag-built belt line, a raid
+  defense). Store under `docs/presskit/` with a `presskit.md` (pitch paragraph, feature
+  bullets, fact sheet, links, license note). Commit.
+- [ ] **12.2 In-game feedback loop.** Menu + Help gain "Send feedback" (GitHub issues new-
+  issue link with a prefilled template: version, seed, mode — no automatic data collection).
+  `README.md` gains a "Feedback" section. **Analytics decision (locked, spec §7): no player
+  analytics, no tracking, no SDKs.** At most a privacy-respecting page-view counter on the
+  Pages site — and only if Martin opts in later; nothing ships in 1.0. Commit.
+- [ ] **12.3 itch.io draft.** Prepare (as files in `docs/presskit/itch/`) the full page:
+  title, tagline, description (short + long), tag list (`automation`, `factory`, `base-
+  building`, `idle`, `free`, `mobile`…), embed sizing (the game already handles small
+  viewports), screenshots/GIF selection, pricing = free. **Human step:** Martin creates the
+  page, uploads/embeds, publishes, and iterates tags per CTR (the itch algorithm rewards
+  tag/CTR tuning — spec §9.7 source).
+- [ ] **12.4 Portal submissions.** Prepare a one-page submission brief (game summary, tech
+  facts: HTML5/no plugins, touch-ready, offline-capable, load size, no ads/IAP) for **Poki**
+  and **CrazyGames** developer portals — both evaluate builds before any SDK integration.
+  **Human step:** Martin submits; if a portal accepts and requires its SDK, that lands as a
+  post-1.0 plan (SDK wrappers must not touch the sim).
+- [ ] **12.5 Community showcase drafts.** Draft (in `docs/presskit/posts.md`) three tailored
+  posts: r/BaseBuildingGames (builder angle, GIF-led), r/incremental_games (offline-progress
+  + free + browser angle), r/WebGames (tech angle). Honest tone, dev-post conventions, one
+  GIF each, live link. **Human step:** Martin posts and engages replies.
+- [ ] **12.6 Post-launch triage loop.** Add `docs/POST-LAUNCH.md`: how to read GitHub issue
+  reports (the feedback template), a severity ladder (save-loss = drop everything →
+  balance nits = batch), and the cadence promise (a patch pass in week 1, then the post-1.0
+  roadmap: Horizon 5 per `docs/ROADMAP.md`). Update `PLAN-INDEX.md` (this plan → shipped) —
+  final commit of the plan.
+
+**Acceptance:** press kit + drafts exist in-repo and are publish-ready; feedback link works
+from the live build; every outward-facing step is documented as human-executed with the
+prepared materials; no tracking shipped.
 
 ---
 

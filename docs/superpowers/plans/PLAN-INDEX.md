@@ -22,12 +22,15 @@ parallel worktrees, merged to `main` in order #1→#2→#3, live). #4–#7 remai
 ## The master plan (DRIFTWORKS 1.0)
 
 **`2026-07-05-driftworks-1.0-master-plan.md`** is the A-to-Z plan for shipping the complete
-game (spec: `../specs/2026-07-05-driftworks-1.0-full-game-design.md`). Eleven sequential,
+game (spec: `../specs/2026-07-05-driftworks-1.0-full-game-design.md`, incl. its §9 research
+addendum — evidence behind the pacing/QoL/save/distribution choices). Twelve sequential,
 independently-shippable phases: Phase 1 **absorbs plans #4–#7 by reference** (execute them as
-its sub-plans), then tooltips/UI v2 → chunked seeded world + 5 biomes + save v4 → full item
-economy + tech tree v2 → fluids → power network → threat layer (Wanderer/Drifter) →
+its sub-plans), then tooltips/UI v2 (+ alt-overlay, pipette, recipe codex) → chunked seeded
+world + 5 biomes + save v4 + IndexedDB save hardening → full item economy + tech tree v2 →
+fluids (with guided oil objectives) → power network → threat layer (Wanderer/Drifter) →
 exploration/POIs → Ark endgame + menu/slots/offline → audio → release (perf/PWA/a11y/balance/
-docs/1.0 tag). Execute one phase at a time; every phase ends merged, tested, deployed, and
+docs/1.0 tag) → launch & distribution (press kit, itch/portal drafts; publishing itself is
+human-executed). Execute one phase at a time; every phase ends merged, tested, deployed, and
 live-verified. Supersedes the "recommended order" below once started.
 
 (Earlier, for reference: `2026-06-25-ui-ux-redesign.md`, `2026-06-25-economy-research.md`.)
