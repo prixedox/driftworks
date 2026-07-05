@@ -44,15 +44,15 @@ GitHub Actions → Pages · PWA. No backend, no new runtime deps without strong 
 - [ ] **One phase at a time, in order.** Do not parallelize phases on one branch — nearly every
   phase touches `src/main.ts`, `src/sim/world.ts`, `src/sim/types.ts`. If you parallelize,
   use one git worktree per phase (`superpowers:using-git-worktrees`) and merge in phase order.
-- [ ] **Phase kickoff protocol (required):** this master plan fixes each phase's scope,
-  contracts, data, tests, and acceptance — but NOT every function body. At the start of each
-  phase (Phase 2 onward; Phase 1's sub-plans already exist), first **write the detailed
-  per-phase plan**: read the spec section + the phase below + the current code, then produce
-  `docs/superpowers/plans/phases/phase-N-<slug>.md` in the same task/step format as the
-  existing plans #4–#7 (exact files, code, test bodies, commands), using the
-  superpowers:writing-plans skill. Commit it, then execute it task-by-task. The master plan
-  wins on any contract/data conflict; if reality forces a contract change, update this file
-  in the same commit and say why.
+- [ ] **Phase kickoff protocol (required):** detailed per-phase plans are **pre-written**
+  in `docs/superpowers/plans/phases/phase-N-<slug>.md` (Phases 2–12; Phase 1 uses the four
+  2026-06-25 sub-plans). At the start of each phase: open its plan and run its **Pre-flight
+  reality check** against the current code — earlier phases may have drifted details
+  (names, signatures, file shapes). Patch the phase plan where reality disagrees (commit the
+  patch with a one-line reason), then execute it task-by-task. Precedence on conflicts:
+  current code reality > this master plan's contracts/data > the phase plan's prose. If a
+  *contract* (types/data tables) must change, update this master plan in the same commit
+  and say why.
 - [ ] Per phase: create a branch `phase-N-<slug>` → execute its tasks with TDD (write the
   failing test → see it fail → implement minimally → see it pass → commit) → run the full
   suite → re-baseline the determinism hash if sim changed → `npm run build` → merge to `main`
@@ -948,10 +948,11 @@ prepared materials; no tracking shipped.
 
 > Execute `docs/superpowers/plans/2026-07-05-driftworks-1.0-master-plan.md`. First read that
 > file fully, then the spec it names (including §9). Determine the current phase: check
-> `docs/superpowers/plans/PLAN-INDEX.md` status, `docs/superpowers/plans/phases/` for
-> per-phase plans, and recent git history. Then continue from the first unfinished phase,
-> following the plan's "How to execute" and "Phase kickoff protocol" sections exactly
-> (per-phase detailed plan first for Phases 2+, then subagent-driven execution, full gates,
+> `docs/superpowers/plans/PLAN-INDEX.md` status and recent git history. Then continue from
+> the first unfinished phase: open its pre-written plan in `docs/superpowers/plans/phases/`
+> (Phase 1 = the four 2026-06-25 sub-plans), run that plan's Pre-flight reality check,
+> patch drift, then execute it task-by-task per the "How to execute" and "Phase kickoff
+> protocol" sections (subagent-driven execution, full gates, determinism re-baseline,
 > deploy, live-verify, docs updates). Work one phase per session; stop after the phase's
 > deploy is live-verified and report what shipped and what's next.
 

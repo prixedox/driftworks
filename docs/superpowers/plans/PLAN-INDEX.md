@@ -33,6 +33,14 @@ docs/1.0 tag) → launch & distribution (press kit, itch/portal drafts; publishi
 human-executed). Execute one phase at a time; every phase ends merged, tested, deployed, and
 live-verified. Supersedes the "recommended order" below once started.
 
+**Per-phase detailed plans (pre-written, execution-ready):** `phases/phase-2-tooltips-ui-v2.md`
+· `phases/phase-3-world-engine.md` · `phases/phase-4-production-depth.md` ·
+`phases/phase-5-fluids-oil.md` · `phases/phase-6-power-network.md` ·
+`phases/phase-7-threat-modes.md` · `phases/phase-8-exploration.md` ·
+`phases/phase-9-endgame-meta.md` · `phases/phase-10-audio.md` · `phases/phase-11-release.md`
+· `phases/phase-12-launch-distribution.md`. (Phase 1 = plans #4–#7 above.) Each starts with
+a **Pre-flight reality check** — run it at phase kickoff and patch drift before executing.
+
 (Earlier, for reference: `2026-06-25-ui-ux-redesign.md`, `2026-06-25-economy-research.md`.)
 
 ## Conflict map (why you can't naively run all 7 at once)
