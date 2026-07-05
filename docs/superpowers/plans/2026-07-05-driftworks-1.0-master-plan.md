@@ -44,6 +44,15 @@ GitHub Actions → Pages · PWA. No backend, no new runtime deps without strong 
 - [ ] **One phase at a time, in order.** Do not parallelize phases on one branch — nearly every
   phase touches `src/main.ts`, `src/sim/world.ts`, `src/sim/types.ts`. If you parallelize,
   use one git worktree per phase (`superpowers:using-git-worktrees`) and merge in phase order.
+- [ ] **Phase kickoff protocol (required):** this master plan fixes each phase's scope,
+  contracts, data, tests, and acceptance — but NOT every function body. At the start of each
+  phase (Phase 2 onward; Phase 1's sub-plans already exist), first **write the detailed
+  per-phase plan**: read the spec section + the phase below + the current code, then produce
+  `docs/superpowers/plans/phases/phase-N-<slug>.md` in the same task/step format as the
+  existing plans #4–#7 (exact files, code, test bodies, commands), using the
+  superpowers:writing-plans skill. Commit it, then execute it task-by-task. The master plan
+  wins on any contract/data conflict; if reality forces a contract change, update this file
+  in the same commit and say why.
 - [ ] Per phase: create a branch `phase-N-<slug>` → execute its tasks with TDD (write the
   failing test → see it fail → implement minimally → see it pass → commit) → run the full
   suite → re-baseline the determinism hash if sim changed → `npm run build` → merge to `main`
@@ -592,6 +601,8 @@ export const TURRET = { range: 5, dmg: 10, ticksPerShot: 4, ammoPerShot: 1 };
 export const DIFFICULTY_SCALE = [50, 100, 200];              // % raid size
 ```
 
+BUILD_COSTS: wall 2 plate · turret 5 plate + 2 gear + 2 circuit.
+
 - **Pollution:** per-chunk int accumulator; +POLLUTION[type] on each completed craft/mine;
   −1 per chunk per 100 ticks (decay). Drives raid budget.
 - **Raids (threat.ts):** every RAID_INTERVAL ticks (data: 9000 ≈ 19 min, ×difficulty), if
@@ -676,6 +687,8 @@ export interface Snapshot { /* … */ pois: PoiView[] /* discovered only */;
   power class 0, draw 3. **Rover (stretch — build last, cut first):** rover_bay crafts a
   rover (100 steel, 50 circuit); mounting doubles player speed + auto-reveals radius 6;
   pure client-side movement modifier + a renderer mesh swap; sim knows nothing.
+- BUILD_COSTS: radar 4 plate + 2 circuit · heater 4 plate + 2 gear · rover_bay 20 steel +
+  10 circuit.
 
 **Tasks:**
 
@@ -731,6 +744,7 @@ export interface AchievementDef { id: string; name: string; desc: string;
 export const ACHIEVEMENTS: AchievementDef[];
 ```
 
+- BUILD_COSTS: ark_site 50 steel + 25 circuit (the real cost is the four stages).
 - **Multi-tile:** `ark_site` occupies a 4×4 cell block (placement validates all 16 cells;
   `modules` stores the anchor; occupancy map for the rest). It consumes items belt-delivered
   to any edge cell into the current stage's needs. Stage completes when all needs met →
@@ -927,6 +941,19 @@ prepared materials; no tracking shipped.
 - [ ] `PLAN-INDEX.md` + root `CLAUDE.md` backlog updated to reflect reality.
 - [ ] No tunable landed outside `src/sim/data*.ts`; no game state outside the sim; no AI
   attribution in any commit.
+
+---
+
+## Kickoff prompt (paste to the executing agent to start or resume)
+
+> Execute `docs/superpowers/plans/2026-07-05-driftworks-1.0-master-plan.md`. First read that
+> file fully, then the spec it names (including §9). Determine the current phase: check
+> `docs/superpowers/plans/PLAN-INDEX.md` status, `docs/superpowers/plans/phases/` for
+> per-phase plans, and recent git history. Then continue from the first unfinished phase,
+> following the plan's "How to execute" and "Phase kickoff protocol" sections exactly
+> (per-phase detailed plan first for Phases 2+, then subagent-driven execution, full gates,
+> deploy, live-verify, docs updates). Work one phase per session; stop after the phase's
+> deploy is live-verified and report what shipped and what's next.
 
 
 
