@@ -184,17 +184,10 @@ console.log(fails === 0 ? 'PASS' : `FAILED ${fails}`);
 process.exit(fails === 0 ? 0 : 1);
 ```
 
-- [ ] **Step 2: implement.** `hash2` = splitmix32 over `(seed ^ (x*0x9E3779B1) ^ (y*0x85EBCA77))`,
-  all `| 0` / `>>> 0` integer ops, returns `>>> 0`. `rand01(seed,x,y,salt)` helper =
-  `hash2(seed^salt,x,y) / 0x100000000` (float is fine here — worldgen output is data, the
-  running sim stays integer; determinism holds because inputs are integers). `generate`:
-  biome per tile from the region layout with border wobble
-  (`hash2(seed, x>>3, y>>3) % 13 - 6`); lake blobs then deposit blobs per `BIOMES` using
-  blob centers drawn from hashed positions **within that biome's region**, skipping water;
-  richness per cell = lerp of the def's range by `rand01`. **Starter guarantee pass:** after
-  generation, check the test's guarantees programmatically; if any fail, stamp fallback
-  blobs at fixed offsets from SPAWN (iron at +8,+2 r2; coal at −9,+5 r2; copper at +4,−9 r2;
-  lake at +12,0 r2) — deterministic and unconditional-safe.
+- [ ] **Step 2: implement.** Use the reference implementation in **Appendix A** below —
+  it is written against the exact contracts of this plan; adapt only where the appendix
+  and the test disagree (the test wins). Float division is fine INSIDE worldgen (output
+  is data; determinism holds because inputs are integers); the running sim stays integer.
 - [ ] **Step 3:** tests PASS. Commit: `sim: seeded worldgen (biomes, lakes, deposits) + guarantees`.
 
 ---
@@ -380,3 +373,118 @@ reveals as you walk, map + minimap agree, deposits deplete visibly in the inspec
 day/night cycles, save v4 survives reload mid-exploration, v3 migrates with the courtesy
 toast, determinism green with the new baseline — plus hardened storage (A/B, persist,
 export/import) from Task 6.
+
+---
+
+## Appendix A — `worldgen.ts` reference implementation
+
+Written against this plan's contracts; Phase 7 adds nests and Phase 8 adds POIs/lava to
+the SAME structure (keep `generate` composable — each feature is its own pass).
+
+```ts
+import type { BiomeId, OreType } from './types';
+import { WORLD_W, WORLD_H } from './types';
+import { BIOMES, SPAWN } from './data_biomes';
+
+export interface GenWorld {
+  biome: BiomeId[];
+  water: Set<number>;
+  deposits: Map<number, { type: OreType; richness: number }>;
+}
+
+/** 32-bit integer hash (splitmix-style). Deterministic across platforms. */
+export function hash2(seed: number, x: number, y: number): number {
+  let h = (seed ^ Math.imul(x, 0x9e3779b1) ^ Math.imul(y, 0x85ebca77)) | 0;
+  h = Math.imul(h ^ (h >>> 16), 0x21f0aaad);
+  h = Math.imul(h ^ (h >>> 15), 0x735a2d97);
+  return (h ^ (h >>> 15)) >>> 0;
+}
+const rand01 = (seed: number, x: number, y: number, salt: number): number =>
+  hash2(seed ^ Math.imul(salt, 0x9e3779b1), x, y) / 0x100000000;
+const cellOf = (x: number, y: number): number => y * WORLD_W + x;
+const inMap = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < WORLD_W && y < WORLD_H;
+
+/** Region layout with hash-wobbled borders. Order matters: hollows before canopy. */
+export function biomeAt(seed: number, x: number, y: number): BiomeId {
+  const dx = x - SPAWN.x, dy = y - SPAWN.y;
+  if ((dx * dx) / (56 * 56) + (dy * dy) / (44 * 44) <= 1) return 'dust';
+  const wob = (hash2(seed, x >> 3, y >> 3) % 13) - 6;
+  if (x + wob > 208 && y >= 64 && y <= 160) return 'hollows';
+  if (y + wob < 64) return 'ridge';
+  if (y + wob > 192) return 'ember';
+  if (x + wob > 168 && y < 168) return 'canopy';
+  return 'dust';
+}
+
+function stampBlob(g: GenWorld, cx: number, cy: number, r: number,
+                   put: (cell: number) => void): void {
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    if (dx * dx + dy * dy > r * r + 1) continue;
+    const x = cx + dx, y = cy + dy;
+    if (inMap(x, y)) put(cellOf(x, y));
+  }
+}
+
+export function generate(seed: number): GenWorld {
+  const g: GenWorld = { biome: new Array(WORLD_W * WORLD_H), water: new Set(), deposits: new Map() };
+  for (let y = 0; y < WORLD_H; y++) for (let x = 0; x < WORLD_W; x++)
+    g.biome[cellOf(x, y)] = biomeAt(seed, x, y);
+
+  // Lakes: 10 hash-placed blobs, never in hollows; + guaranteed spawn lake (below).
+  for (let i = 0; i < 10; i++) {
+    const cx = hash2(seed, 1000 + i, 1) % WORLD_W;
+    const cy = hash2(seed, 1000 + i, 2) % WORLD_H;
+    if (g.biome[cellOf(cx, cy)] === 'hollows') continue;
+    const r = 2 + (hash2(seed, 1000 + i, 3) % 3);
+    stampBlob(g, cx, cy, r, (c) => g.water.add(c));
+  }
+
+  // Deposits per biome def: rejection-sample centers inside the region, off water.
+  for (const b of BIOMES) {
+    b.deposits.forEach((d, di) => {
+      for (let blob = 0; blob < d.blobs; blob++) {
+        const salt = 7000 + di * 100 + blob;
+        for (let t = 0; t < 100; t++) {                      // bounded, deterministic
+          const cx = hash2(seed ^ salt, t, 11) % WORLD_W;
+          const cy = hash2(seed ^ salt, t, 12) % WORLD_H;
+          const c = cellOf(cx, cy);
+          if (g.biome[c] !== b.id || g.water.has(c)) continue;
+          const r = d.r[0] + (hash2(seed ^ salt, t, 13) % (d.r[1] - d.r[0] + 1));
+          stampBlob(g, cx, cy, r, (cc) => {
+            if (g.water.has(cc)) return;
+            const rich = d.richness[0] +
+              Math.floor(rand01(seed, cc % WORLD_W, (cc / WORLD_W) | 0, salt) *
+                         (d.richness[1] - d.richness[0]));
+            g.deposits.set(cc, { type: d.type, richness: rich });
+          });
+          break;                                             // placed — next blob
+        }
+      }
+    });
+  }
+
+  // Starter guarantee pass — check, then stamp deterministic fallbacks if missing.
+  const near = (t: OreType, r: number): boolean => {
+    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      const d = g.deposits.get(cellOf(SPAWN.x + dx, SPAWN.y + dy));
+      if (d && d.type === t) return true;
+    }
+    return false;
+  };
+  const stampDeposit = (ox: number, oy: number, r: number, t: OreType): void =>
+    stampBlob(g, SPAWN.x + ox, SPAWN.y + oy, r, (c) => {
+      if (!g.water.has(c)) g.deposits.set(c, { type: t, richness: 500 });
+    });
+  if (!near('iron', 24)) stampDeposit(8, 2, 2, 'iron');
+  if (!near('coal', 24)) stampDeposit(-9, 5, 2, 'coal');
+  if (!near('copper', 24)) stampDeposit(4, -9, 2, 'copper');
+  let hasWater = false;
+  for (let dy = -20; dy <= 20 && !hasWater; dy++) for (let dx = -20; dx <= 20; dx++)
+    if (g.water.has(cellOf(SPAWN.x + dx, SPAWN.y + dy))) { hasWater = true; break; }
+  if (!hasWater) stampBlob(g, SPAWN.x + 12, SPAWN.y, 2, (c) => { g.deposits.delete(c); g.water.add(c); });
+  // Spawn tile clear:
+  g.deposits.delete(cellOf(SPAWN.x, SPAWN.y));
+  g.water.delete(cellOf(SPAWN.x, SPAWN.y));
+  return g;
+}
+```

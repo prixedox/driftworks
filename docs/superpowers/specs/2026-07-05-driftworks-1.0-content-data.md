@@ -263,10 +263,12 @@ reveals 6 as specced; player base 6) · AUDIO budget ≤4 MB · JS initial ≤25
    lands P7 — the recipe is data-present, unlock-gated, exactly like the sci3/4 pattern;
    `economy_graph` accepts it (recipe exists, gated).
 
-## 13. Post-1.0 content-pack seeds (NOT in scope — parking lot)
+## 13. Post-1.0 content (NOT in 1.0 scope)
 
-Data-only expansions the engine will take without code: a 6th biome (archipelago —
-signature resource: silica → glass/optics chain), S5 "Drift Science" tier gated on
-Infinite Mode, uranium + nuclear power tier (fuel cells reuse the boiler/engine pairing
-pattern), belt tier 4 via infinite research, seasonal world modifiers (data-driven hazard
-schedule). Each follows the same spec → plan → execute flow; none touches determinism.
+The post-1.0 roadmap now has its own design spec:
+**`2026-07-06-post-1.0-satisfactory-fusion.md`** — updates 1.1 "Charm & Flow" (Reclaimer
+sink + Scrip shop, Skyway belts, Scrapling companion, VECTOR personality), 1.2 "Mastery"
+(data-core alternate recipes, drift-shard overclocking), 1.3 "Motion" (transit tubes,
+jump pads, photo mode), then 2.0 co-op per ROADMAP H5. Earlier parking-lot seeds (6th
+biome, nuclear tier, S5 science, belt tier 4, seasonal modifiers) remain candidates for
+1.2+/2.x content packs and are noted there. Nothing here lands before v1.0.0 ships.

@@ -45,6 +45,11 @@ a **Pre-flight reality check** — run it at phase kickoff and patch drift befor
 bible) — every item/recipe/tech/cost/constant in one place, with landing phases and
 cross-phase consistency notes. It wins numeric conflicts with any plan.
 
+**After 1.0:** `../specs/2026-07-06-post-1.0-satisfactory-fusion.md` — the post-launch
+expansion design (updates 1.1–1.3: sink/cosmetics, alternate recipes, overclocking,
+transit tubes, companions, photo mode), then ROADMAP Horizon 5 (co-op). Strictly gated on
+`v1.0.0` shipping; each update gets its own plan when its turn comes.
+
 (Earlier, for reference: `2026-06-25-ui-ux-redesign.md`, `2026-06-25-economy-research.md`.)
 
 ## Conflict map (why you can't naively run all 7 at once)

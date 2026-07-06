@@ -159,7 +159,8 @@ export function threatTick(w: WorldLike, st: ThreatState, difficulty: Difficulty
 - [ ] Implement threat.ts + world wiring (`mode`, `difficulty` fields set by `loadNew`;
   `advance()` calls `threatTick` only in drifter mode; enemies/raid into snapshot; save
   fields). Worker: init carries mode/difficulty; `repair`; `offline` (sliced loop as
-  locked above).
+  locked above). **Use the reference implementation in Appendix A below** — written
+  against this plan's contracts; the tests win any disagreement.
 - [ ] Suites + re-baseline (twice: worldgen hashes too). Commit:
   `sim: deterministic raids — scheduling, pathing, combat, offline suppression (+tests)`.
 
@@ -216,3 +217,161 @@ export function threatTick(w: WorldLike, st: ThreatState, difficulty: Difficulty
 **Acceptance (master plan):** a polluting Drifter base draws a telegraphed raid that
 walls+turrets+ammo repel; losses are repairable; Calm/Standard/Relentless visibly scale;
 Wanderer shows zero combat surface; determinism suite green including a threat-mode script.
+
+---
+
+## Appendix A — `threat.ts` reference implementation
+
+All-integer, order-stable. `WorldLike` is the narrow seam so threat.ts stays unit-testable
+without a full World.
+
+```ts
+import type { Difficulty, EnemyKind } from './types';
+import { CHUNK, CHUNKS_X, WORLD_W } from './types';
+import { ENEMY_STATS, ATTACK_PERIOD, RAID_TABLE, DIFFICULTY_SCALE,
+         RAID_INTERVAL, RAID_TELEGRAPH } from './data_threat';
+
+export interface Enemy {
+  id: number; kind: EnemyKind; x: number; y: number; px: number; py: number;
+  hp: number; stepCd: number; atkCd: number; target: number;   // target cell, -1 = none
+}
+export interface ThreatState {
+  enemies: Enemy[]; nextId: number;
+  raidArmed: boolean; raidEta: number; raidTier: number; targetChunk: number;
+}
+export interface WorldLike {
+  pulse: number;
+  pollution: Int32Array;                       // per chunk
+  nests: number[];                             // nest cells (worldgen)
+  moduleCells(): number[];                     // sorted cell ids of all placed modules
+  hasModule(cell: number): boolean;
+  damage(cell: number, dmg: number): void;     // world applies HP loss / destruction
+  pushAlert(kind: 'raid', cell?: number): void;
+}
+
+export const initialThreat = (): ThreatState =>
+  ({ enemies: [], nextId: 1, raidArmed: false, raidEta: 0, raidTier: -1, targetChunk: -1 });
+
+const chunkOf = (cell: number): number =>
+  (((cell / WORLD_W) | 0) / CHUNK | 0) * CHUNKS_X + ((cell % WORLD_W) / CHUNK | 0);
+const cheb = (a: number, b: number): number => {
+  const ax = a % WORLD_W, ay = (a / WORLD_W) | 0, bx = b % WORLD_W, by = (b / WORLD_W) | 0;
+  return Math.max(Math.abs(ax - bx), Math.abs(ay - by));
+};
+const raidPeriod = (d: Difficulty): number =>
+  Math.max(1, (RAID_INTERVAL * 100 / DIFFICULTY_SCALE[d]) | 0);
+
+/** Highest RAID_TABLE index whose threshold ≤ total pollution, else -1. */
+function tierFor(pollution: Int32Array): number {
+  let total = 0;
+  for (let i = 0; i < pollution.length; i++) total += pollution[i];
+  let tier = -1;
+  for (let i = 0; i < RAID_TABLE.length; i++) if (total > RAID_TABLE[i].threshold) tier = i;
+  return tier;
+}
+
+function hottestChunk(pollution: Int32Array): number {
+  let best = 0, bestV = -1;
+  for (let i = 0; i < pollution.length; i++)
+    if (pollution[i] > bestV) { bestV = pollution[i]; best = i; }   // ties: lower index
+  return best;
+}
+
+/** Nearest module to `from`, preferring the target chunk; ties → lower cell id. */
+function pickTarget(w: WorldLike, from: number, chunk: number): number {
+  let best = -1, bestD = Infinity;
+  for (const c of w.moduleCells()) {                 // sorted ascending — ties resolve low
+    const inChunk = chunkOf(c) === chunk;
+    const d = cheb(from, c) - (inChunk ? 100000 : 0); // chunk members always win
+    if (d < bestD) { bestD = d; best = c; }
+  }
+  return best;
+}
+
+function spawnWave(w: WorldLike, st: ThreatState, d: Difficulty): void {
+  const nest = st.targetChunk >= 0
+    ? w.nests.reduce((a, b) =>
+        cheb(b, hottestCell(st.targetChunk)) < cheb(a, hottestCell(st.targetChunk)) ? b : a)
+    : w.nests[0];
+  const wave = RAID_TABLE[st.raidTier].wave;
+  for (const grp of wave) {
+    const n = Math.max(1, (grp.n * DIFFICULTY_SCALE[d] / 100) | 0);
+    for (let i = 0; i < n; i++) {
+      const s = ENEMY_STATS[grp.kind];
+      const x = nest % WORLD_W, y = (nest / WORLD_W) | 0;
+      st.enemies.push({ id: st.nextId++, kind: grp.kind, x, y, px: x, py: y,
+        hp: s.hp, stepCd: s.speed + (i % s.speed), atkCd: 0, target: -1 });
+    }
+  }
+  function hottestCell(chunk: number): number {      // chunk center cell
+    const cy = (chunk / CHUNKS_X | 0) * CHUNK + CHUNK / 2;
+    const cx = (chunk % CHUNKS_X) * CHUNK + CHUNK / 2;
+    return cy * WORLD_W + cx;
+  }
+}
+
+export function threatTick(w: WorldLike, st: ThreatState, d: Difficulty,
+                           suppressed: boolean): void {
+  // 1. Raid scheduling / telegraph countdown.
+  if (st.raidArmed) {
+    st.raidEta--;
+    if (st.raidEta <= 0) { spawnWave(w, st, d); st.raidArmed = false; }
+  } else if (!suppressed && st.enemies.length === 0 && w.pulse > 0 &&
+             w.pulse % raidPeriod(d) === 0) {
+    const tier = tierFor(w.pollution);
+    if (tier >= 0) {
+      st.raidTier = tier;
+      st.targetChunk = hottestChunk(w.pollution);
+      st.raidArmed = true;
+      st.raidEta = RAID_TELEGRAPH;
+      w.pushAlert('raid', /* nearest nest */ w.nests[0]);
+    }
+  }
+
+  // 2. Enemy steps/attacks (ascending id = insertion order; array is append-only here).
+  for (const e of st.enemies) {
+    if (e.target < 0 || !w.hasModule(e.target)) e.target = pickTarget(w, e.x + e.y * WORLD_W, st.targetChunk);
+    if (e.target < 0) continue;                      // no modules exist → despawn below
+    e.px = e.x; e.py = e.y;
+    if (e.atkCd > 0) e.atkCd--;
+    if (e.stepCd > 0) { e.stepCd--; continue; }
+    e.stepCd = ENEMY_STATS[e.kind].speed;
+    const tx = e.target % WORLD_W, ty = (e.target / WORLD_W) | 0;
+    const dx = Math.sign(tx - e.x), dy = Math.sign(ty - e.y);
+    // Prefer the axis with the larger delta; ties prefer x.
+    const stepX = Math.abs(tx - e.x) >= Math.abs(ty - e.y);
+    const nx = e.x + (stepX ? dx : 0), ny = e.y + (stepX ? 0 : dy);
+    const nc = ny * WORLD_W + nx;
+    if (w.hasModule(nc)) {                            // blocked by a building → attack it
+      if (e.atkCd === 0) { w.damage(nc, ENEMY_STATS[e.kind].dmg); e.atkCd = ATTACK_PERIOD; }
+    } else { e.x = nx; e.y = ny; }
+    if (nc === e.target && !w.hasModule(nc)) e.target = -1; // arrived at rubble → retarget
+  }
+
+  // 3. Cull the dead / despawn condition.
+  st.enemies = st.enemies.filter((e) => e.hp > 0);
+  if (st.enemies.length > 0 && w.moduleCells().length === 0) st.enemies = [];
+}
+
+/** Turret pass — called from world.advance() AFTER threatTick; world owns ammo/power. */
+export function fireTurrets(
+  turrets: { cell: number; range: number; dmg: number }[],   // powered, ammo>0, sorted by cell
+  st: ThreatState,
+  onShot: (turretCell: number, enemyId: number) => void,     // world: spend ammo, mark tracer
+): void {
+  for (const t of turrets) {
+    let best: Enemy | null = null, bestD = Infinity;
+    for (const e of st.enemies) {                             // ascending id → ties resolve low
+      const d = cheb(t.cell, e.y * WORLD_W + e.x);
+      if (d <= t.range && d < bestD) { bestD = d; best = e; }
+    }
+    if (best) { best.hp -= t.dmg; onShot(t.cell, best.id); }
+  }
+}
+```
+
+Wiring notes: `world.advance()` calls `threatTick` then, on `ticksPerShot` cadence per
+turret, builds the eligible-turret list and calls `fireTurrets`; `damage()` applies HP,
+removes at ≤ 0 (no refund/undo), fires no alert (raid alert already latched);
+`raidsSurvived` (Phase 9 stat) increments when `enemies` transitions >0 → 0 with ≥ 1
+module standing.
