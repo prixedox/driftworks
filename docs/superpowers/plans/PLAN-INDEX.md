@@ -45,6 +45,10 @@ a **Pre-flight reality check** — run it at phase kickoff and patch drift befor
 bible) — every item/recipe/tech/cost/constant in one place, with landing phases and
 cross-phase consistency notes. It wins numeric conflicts with any plan.
 
+**Cross-cutting guides:** `../../ART-DIRECTION.md` (binding for all render/UI visuals) ·
+Phase-2 plan Appendix B (HUD real-estate map, binding through Phase 11) · data bible §13a
+(computed pacing model + tuning-knob order for the Phase 11 balance pass).
+
 **After 1.0:** `../specs/2026-07-06-post-1.0-satisfactory-fusion.md` — the post-launch
 expansion design (updates 1.1–1.3: sink/cosmetics, alternate recipes, overclocking,
 transit tubes, companions, photo mode), then ROADMAP Horizon 5 (co-op). Strictly gated on

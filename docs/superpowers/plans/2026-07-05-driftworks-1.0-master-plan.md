@@ -92,7 +92,11 @@ GitHub Actions → Pages · PWA. No backend, no new runtime deps without strong 
 > `../specs/2026-07-05-driftworks-1.0-content-data.md` — the data bible. On any numeric
 > conflict between it and a phase table below, **the data bible wins**; its §12 also lists
 > known cross-phase consistency notes (BuildCost[] migration, GEN_OUTPUT supersede, the
-> removed `circuits` tech).
+> removed `circuits` tech) and §13a the computed pacing model behind the balance targets.
+>
+> **Visual work** (any model, palette, particle, UI visual — phases 2–10): follow
+> `docs/ART-DIRECTION.md`. **HUD additions**: follow the real-estate map in the Phase 2
+> plan's Appendix B — new surfaces go in the More sheet, never new dock buttons.
 
 ---
 

@@ -500,9 +500,9 @@ process.exit(fails === 0 ? 0 : 1);
   Explain button + `toggleExplain` callback; in `hud.ts`/`main.ts` remove the wiring; in
   the `hint` line of `hud.ts`, refresh the text (mention long-press for info).
 - [ ] Full suite + build; **visual sweep** (both viewports): no label sprites, tooltips
-  cover the gap; hotbar dock reads `[Build →][↻ View][Pause][Speed][Alt][Research][Stats]
-  [Codex][?][⚙][Reset]` — if the dock overflows on 390 px, move `Codex`/`?`/`Reset`
-  into the settings sheet (judgment call, note it in the commit).
+  cover the gap. **Restructure the dock per Appendix B (the HUD real-estate map)** — it
+  will not fit 11 buttons on 390 px; the More-sheet is the designed answer, not a
+  judgment call.
 - [ ] Commit: `ui: help panel; remove Explain mode (tooltips/alt-overlay replace it)`.
 
 ---
@@ -519,3 +519,38 @@ why can't I use it" via hover/long-press; a blocked smelter says why in the insp
 research is a legible graph with a working queue; alerts arrive with working beacons;
 alt-overlay makes a mixed base readable at a glance; pipette + codex work on touch; no
 Explain remnants.
+
+---
+
+## Appendix B — HUD real-estate map (390×844 baseline; binding through Phase 11)
+
+Every later phase adds UI; THIS map says where it goes. Do not add dock buttons beyond
+the six primary slots — new surfaces go in the More sheet.
+
+```
+┌─────────────────────────────────────────┐
+│ statusbar: pulse · power bar · item chips│  ← thin, top; chips tap→codex
+│        [objective chip / raid countdown] │  ← top-center, under statusbar
+│ alerts stack ▸                          │  ← top-right, transient
+│                                         │
+│                (world)                  │
+│                        [beacon arrow]   │  ← bottom-center, transient
+│ [joystick]                  [minimap]   │  ← minimap sits above the hotbar
+│ tiles: [cat tabs when >9] [tools… ]     │
+│ dock:  [Build →][↻][⏸/spd][Research][Map][⋯]│
+└─────────────────────────────────────────┘
+```
+
+- **Primary dock (max 6):** Build-dir · View-rotate · Pause (long-press cycles speed —
+  merge the two buttons in this task) · Research · Map (Phase 3 wires it; until then
+  Stats sits here) · **More ⋯**.
+- **More sheet** (bottom sheet, one tap): Alt overlay · Stats · Codex · Help · Settings ·
+  Milestones (P9) · Reset. Each row = icon + label + shortcut hint; ≥ 44 px rows.
+- **Panels** (research graph, map, codex, stats, settings, milestones): full-screen
+  sheets on <768 px (inset `48px 8px 96px`), floating panels on desktop. One panel open
+  at a time — opening one closes others (a tiny `panelHost` helper in `hud.ts` owns this;
+  add it in this phase and migrate research/stats onto it).
+- **Desktop ≥1024 px:** the More-sheet contents inline into the dock (CSS media query;
+  same DOM).
+- **Z-order (locked):** canvas 0 · minimap 35 · panels 40 · statusbar/hotbar 50 ·
+  tooltip 60 · toasts/alerts 70 · tutorial spotlight 80 · menu/winscreen 90.

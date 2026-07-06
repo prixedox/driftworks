@@ -262,6 +262,43 @@ reveals 6 as specced; player base 6) · AUDIO budget ≤4 MB · JS initial ≤25
 5. **Ammo before turrets:** `assemble_ammo` data lands P4 but its unlock (`turrets_tech`)
    lands P7 — the recipe is data-present, unlock-gated, exactly like the sci3/4 pattern;
    `economy_graph` accepts it (recipe exists, gated).
+6. **Worldgen versioning:** save v4 carries `genVersion` (starts at 1; P7 nests → 2,
+   P8 POIs/lava → 3). Virgin cells always regenerate with the CURRENT generator; on a
+   version mismatch at load, show a one-time toast ("Unexplored regions have shifted")
+   — mined-cell diffs and placed modules are never touched. Phase 3 defines the field;
+   P7/P8 bump it.
+
+## 13a. Pacing model — computed, not felt (guides the Phase 11 balance pass)
+
+Derived from §2 recipe times at 1× (150 ms/tick = 400 ticks/min), single dedicated
+machines, inputs saturated, no upgrades:
+
+| chain | rate/min | feeder note |
+|---|---|---|
+| iron/copper plate | 66.7 per smelter | 1 miner (≈133 ore/min) feeds 2 smelters |
+| gear | 66.7 | needs 2 iron smelters |
+| wire | 200 | needs 1.5 copper smelters |
+| circuit | 40 | 40 plate + 80 wire/min |
+| steel | 16.7 per smelter | the deliberate long-pole |
+| science / science2 / science3 / science4 | 50 / 33 / 25 / 20 | per pack assembler |
+
+**Tier production floors** (pack totals from §4, one pack assembler per tier, Drifter):
+S1 ≈ 660 packs → **13 min** · S2 ≈ 820 → **25 min** · S3 ≈ 1000 → **40 min** ·
+S4 ≈ 440 (incl. 100 Ark payload) → **22 min** · Ark item chains (frame/fuel/crystal/
+adv-circuit/plastic, partly parallel) → **~35 min**. Floor total ≈ **2 h 15 m** + the
+30–60 min manual bootstrap.
+
+**Wall-clock = floor × 2.5–4** (building, logistics rework, power crises, travel,
+defense; genre experience — a floor-only estimate always undershoots). Projection:
+**≈ 5.5–10 h to launch** — squarely on the spec's 6–10 h target. **Conclusion: ship these
+numbers into playtest unchanged.**
+
+**If Phase 11 measurement misses the target, turn knobs in THIS order** (one at a time):
+1. Pack recipe **times** (e.g. science2 12→16t) — slows the engine without grind;
+2. Tech **costs** flat ×1.25 per affected tier — more packs, same engine;
+3. **Ark quantities** — endgame length only;
+4. Deposit **richness** — expansion cadence; touch last (interacts with trickle floor).
+Never tune by adding hand-crafting steps or wait-timers (spec pillars forbid it).
 
 ## 13. Post-1.0 content (NOT in 1.0 scope)
 

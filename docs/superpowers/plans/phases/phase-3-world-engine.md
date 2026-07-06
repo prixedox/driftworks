@@ -84,6 +84,9 @@ export interface SaveState {                                        // version: 
   minedDeposits: { cell: number; richness: number }[]; // only cells whose richness differs from virgin
   discovered: string;                                   // base64 of the bitset
   dayPhase: number;
+  genVersion: number;   // worldgen generation version (1 here; P7→2, P8→3). Virgin cells
+                        // regenerate with the CURRENT generator; on mismatch show a
+                        // one-time "Unexplored regions have shifted" toast. Bible §12.6.
   mode?: 'wanderer' | 'drifter';                        // populated in Phase 7
   difficulty?: 0 | 1 | 2;
 }
