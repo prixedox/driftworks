@@ -64,6 +64,8 @@ export interface Snapshot {
   unlockedRecipes: string[];
   research: { active: string | null; progress: number; completed: string[] };
   upgrades: UpgradeId[];
+  /** Copied blueprint stamp (relative offsets); empty when nothing is copied. */
+  clipboard: { relCol: number; relRow: number; type: ModuleType; dir: Dir }[];
 }
 
 /** Persistent save (written by the main thread; workers can't use localStorage). */
@@ -93,6 +95,9 @@ export type Command =
   | { type: 'collect' }
   | { type: 'research'; action: 'select'; tech: string }
   | { type: 'research'; action: 'contribute' }
+  | { type: 'undo' }
+  | { type: 'blueprint'; action: 'copy'; cells: number[] }
+  | { type: 'blueprint'; action: 'paste'; originCell: number }
   | { type: 'select-recipe'; cell: number; recipe: string };
 
 /** Messages: worker -> main thread. */

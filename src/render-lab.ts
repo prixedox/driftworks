@@ -90,6 +90,7 @@ const snap: Snapshot = {
   unlockedRecipes: ['smelt_iron', 'assemble_science'],
   research: { active: null, progress: 0, completed: [] },
   upgrades: [],
+  clipboard: [],
 };
 
 // --- scene -------------------------------------------------------------------

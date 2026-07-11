@@ -79,6 +79,15 @@ ctx.onmessage = (e: MessageEvent<Command>) => {
       world.selectRecipe(cmd.cell, cmd.recipe);
       post();
       break;
+    case 'undo':
+      world.undo();
+      post();
+      break;
+    case 'blueprint':
+      if (cmd.action === 'copy') world.copyBlueprint(cmd.cells);
+      else world.paste(cmd.originCell);
+      post();
+      break;
     case 'speed':
       pulseMs = cmd.pulseMs;
       break;

@@ -15,6 +15,13 @@ const LAB_CAP = 6; // max science flasks buffered in a lab
 const MINER_POWER = 2;
 const GEN_POWER = 12;
 
+const ERASE_REFUND = 1; // 100% of build cost returned on erase (integer scale; change here to tune)
+const UNDO_LIMIT = 32;
+
+type UndoEntry =
+  | { op: 'place'; cell: number; modType: ModuleType; dir: Dir }
+  | { op: 'remove'; cell: number; modType: ModuleType; dir: Dir };
+
 function getRecipe(id: RecipeId | string): Recipe | undefined {
   return RECIPES.find((r) => r.id === id);
 }
@@ -71,6 +78,8 @@ export class World {
   unlocked = new Set<string>(START_UNLOCKED);
   research: { active: string | null; progress: number; completed: Set<string> } = { active: null, progress: 0, completed: new Set() };
   upgrades = new Set<UpgradeId>();
+  private undoLog: UndoEntry[] = [];
+  clipboard: { relCol: number; relRow: number; type: ModuleType; dir: Dir }[] = [];
 
   cell(x: number, y: number): number {
     return y * this.w + x;
@@ -108,6 +117,7 @@ export class World {
     if ((this.inventory[cost.item] ?? 0) < cost.amount) return false;
     this.inventory[cost.item] -= cost.amount;
     this.placeRaw(c, type, dir);
+    this.pushUndo({ op: 'place', cell: c, modType: type, dir });
     return true;
   }
 
@@ -164,8 +174,90 @@ export class World {
   }
 
   remove(c: number): void {
+    const m = this.modules.get(c);
+    if (m) {
+      // Refund ERASE_REFUND fraction of the build cost back to inventory.
+      const cost = BUILD_COSTS[m.type];
+      const refund = Math.round(cost.amount * ERASE_REFUND);
+      this.inventory[cost.item] = (this.inventory[cost.item] ?? 0) + refund;
+      this.pushUndo({ op: 'remove', cell: c, modType: m.type, dir: m.dir });
+    }
     this.modules.delete(c);
     this.packets = this.packets.filter((p) => p.cell !== c);
+  }
+
+  private pushUndo(entry: UndoEntry): void {
+    this.undoLog.push(entry);
+    if (this.undoLog.length > UNDO_LIMIT) this.undoLog.shift();
+  }
+
+  undo(): void {
+    const entry = this.undoLog.pop();
+    if (!entry) return;
+    if (entry.op === 'place') {
+      // Reverse a place: remove the module and give back the cost.
+      const m = this.modules.get(entry.cell);
+      if (m) {
+        const cost = BUILD_COSTS[entry.modType];
+        this.inventory[cost.item] = (this.inventory[cost.item] ?? 0) + cost.amount;
+        this.modules.delete(entry.cell);
+        this.packets = this.packets.filter((p) => p.cell !== entry.cell);
+      }
+    } else {
+      // Reverse a remove: restore the module and take back the refund.
+      if (!this.modules.has(entry.cell)) {
+        const cost = BUILD_COSTS[entry.modType];
+        const refund = Math.round(cost.amount * ERASE_REFUND);
+        this.inventory[cost.item] = Math.max(0, (this.inventory[cost.item] ?? 0) - refund);
+        this.placeRaw(entry.cell, entry.modType, entry.dir);
+      }
+    }
+  }
+
+  copyBlueprint(cells: number[]): void {
+    if (cells.length === 0) { this.clipboard = []; return; }
+    // Find bounding box
+    const cols = cells.map((c) => c % this.w);
+    const rows = cells.map((c) => Math.floor(c / this.w));
+    const minCol = Math.min(...cols);
+    const minRow = Math.min(...rows);
+    this.clipboard = [];
+    // Iterate cells sorted row-major (ascending row, then col) for stable order
+    const sorted = [...cells].sort((a, b) => {
+      const ra = Math.floor(a / this.w), rb = Math.floor(b / this.w);
+      if (ra !== rb) return ra - rb;
+      return (a % this.w) - (b % this.w);
+    });
+    for (const c of sorted) {
+      const m = this.modules.get(c);
+      if (!m) continue; // empty cells in the selection are skipped
+      this.clipboard.push({
+        relCol: (c % this.w) - minCol,
+        relRow: Math.floor(c / this.w) - minRow,
+        type: m.type,
+        dir: m.dir,
+      });
+    }
+  }
+
+  paste(originCell: number): void {
+    if (this.clipboard.length === 0) return;
+    const originCol = originCell % this.w;
+    const originRow = Math.floor(originCell / this.w);
+    // Entries already sorted row-major from copyBlueprint; process in that order
+    for (const entry of this.clipboard) {
+      const col = originCol + entry.relCol;
+      const row = originRow + entry.relRow;
+      if (col < 0 || row < 0 || col >= this.w || row >= this.h) continue; // out of bounds
+      const c = row * this.w + col;
+      if (this.modules.has(c)) continue; // occupied — skip
+      if (!this.unlocked.has(entry.type)) continue; // locked — skip
+      const cost = BUILD_COSTS[entry.type];
+      if ((this.inventory[cost.item] ?? 0) < cost.amount) continue; // unaffordable — skip
+      this.inventory[cost.item] -= cost.amount;
+      this.placeRaw(c, entry.type, entry.dir);
+      this.pushUndo({ op: 'place', cell: c, modType: entry.type, dir: entry.dir });
+    }
   }
 
   private addOreBlob(cx: number, cy: number, r: number, kind: OreType): void {
@@ -204,6 +296,8 @@ export class World {
     this.unlocked = new Set<string>(START_UNLOCKED);
     this.research = { active: null, progress: 0, completed: new Set() };
     this.upgrades = new Set();
+    this.undoLog = [];
+    this.clipboard = [];
     const y = 13;
     this.placeRaw(this.cell(20, 11), 'generator', 1);
     this.placeRaw(this.cell(20, y), 'miner', 1);
@@ -243,6 +337,8 @@ export class World {
       completed: new Set(s.research.completed ?? []),
     };
     this.upgrades = new Set(s.upgrades ?? []);
+    this.undoLog = [];
+    this.clipboard = [];
     for (const m of s.modules) this.placeRaw(m.cell, m.type, m.dir);
   }
 
@@ -489,6 +585,7 @@ export class World {
       unlockedRecipes: [...this.unlocked].filter((k) => RECIPES.some((r) => r.id === k)),
       research: { active: this.research.active, progress: this.research.progress, completed: [...this.research.completed] },
       upgrades: [...this.upgrades],
+      clipboard: this.clipboard.map((e) => ({ ...e })),
     };
   }
 }
