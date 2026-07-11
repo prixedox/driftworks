@@ -47,5 +47,5 @@ Push to `main` → GitHub Actions (`.github/workflows/deploy.yml`) builds and pu
 
 ## Known backlog
 - Lab draws no power; science buffers silently if no science-tech is active; `EXPLAIN` map is dead; some duplicate CSS.
-- Ready-to-run feature plans #4–#7 (build UX, stats/minimap, settings/graphics, onboarding) are written but unbuilt — see `docs/superpowers/plans/PLAN-INDEX.md`.
-- **Shipped:** save v3 (persists inventory/research/unlocks/upgrades) · copper/circuits + `RECIPES` (recipe-select machines) · CI test gating + determinism harness.
+- Ready-to-run feature plans #5–#7 (stats/minimap, settings/graphics, onboarding) are written but unbuilt — see `docs/superpowers/plans/PLAN-INDEX.md` (Phase 1 sub-plans 1.2–1.4).
+- **Shipped:** save v3 (persists inventory/research/unlocks/upgrades) · copper/circuits + `RECIPES` (recipe-select machines) · CI test gating + determinism harness · build UX (erase refund, undo, blueprint copy/paste — Phase 1 · 1.1).
