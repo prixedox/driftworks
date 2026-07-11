@@ -12,7 +12,7 @@ import { World } from '../src/sim/world';
 // ─── Golden hash constant ──────────────────────────────────────────────────
 // Set to 'COMPUTE_ME' on first run; replace with the printed actual hash,
 // then commit both the harness and this file together.
-const GOLDEN = '43d3a4d3';
+const GOLDEN = '4dc98118';
 
 // ─── Command stream ─────────────────────────────────────────────────────────
 // A fixed sequence of operations that exercises inventory, modules, belts,

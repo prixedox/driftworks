@@ -66,6 +66,20 @@ export interface Snapshot {
   upgrades: UpgradeId[];
   /** Copied blueprint stamp (relative offsets); empty when nothing is copied. */
   clipboard: { relCol: number; relRow: number; type: ModuleType; dir: Dir }[];
+  /**
+   * Per-item production/consumption totals over the last RATE_WINDOW ticks
+   * (summed across the window). Divide by the window length (clamped to pulse)
+   * for a per-tick average; scale by 60000/pulseMs for items/min.
+   */
+  rates: Record<ItemType, { produced: number; consumed: number }>;
+  /**
+   * Minimap layer: one byte per tile (row-major, length w*h). 0 = empty,
+   * MINIMAP_ORE = ore deposit, else 2 + index into MINIMAP_MODULE_ORDER for a
+   * machine. The minimap UI renders this + a palette, never reading ore[]/
+   * modules directly — Phase 3 swaps the layer's source (chunks + fog) without
+   * touching the UI component.
+   */
+  minimap: Uint8Array;
 }
 
 /** Persistent save (written by the main thread; workers can't use localStorage). */
@@ -118,6 +132,17 @@ export const DEFS: Record<ModuleType, ModuleDef> = {
   assembler: { label: 'Assembler', short: 'ASM', color: 0x7b5cc0 },
   lab: { label: 'Lab', short: 'LAB', color: 0x3f7fd0 },
 };
+
+/** Minimap layer value for an ore deposit tile (see Snapshot.minimap). */
+export const MINIMAP_ORE = 1;
+/**
+ * Machine ordering for minimap layer values: a machine on cell c writes
+ * `2 + MINIMAP_MODULE_ORDER.indexOf(type)`. Both sim (writer) and UI (palette)
+ * import this so the encoding has a single source of truth.
+ */
+export const MINIMAP_MODULE_ORDER: ModuleType[] = [
+  'miner', 'conveyor', 'smelter', 'storage', 'generator', 'assembler', 'lab',
+];
 
 export const ITEM_COLOR: Record<ItemType, number> = {
   ore: 0xe8a35a,

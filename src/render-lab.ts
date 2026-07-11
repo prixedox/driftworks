@@ -91,6 +91,15 @@ const snap: Snapshot = {
   research: { active: null, progress: 0, completed: [] },
   upgrades: [],
   clipboard: [],
+  rates: {
+    ore: { produced: 0, consumed: 0 },
+    plate: { produced: 0, consumed: 0 },
+    science: { produced: 0, consumed: 0 },
+    copper_ore: { produced: 0, consumed: 0 },
+    copper_plate: { produced: 0, consumed: 0 },
+    circuit: { produced: 0, consumed: 0 },
+  },
+  minimap: new Uint8Array(W * H),
 };
 
 // --- scene -------------------------------------------------------------------

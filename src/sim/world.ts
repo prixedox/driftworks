@@ -1,4 +1,4 @@
-import { DX, DY, type Dir, type ItemType, type ModuleType, type OreType, type ModuleView, type SaveState, type Snapshot } from './types';
+import { DX, DY, ITEM_COLOR, MINIMAP_ORE, MINIMAP_MODULE_ORDER, type Dir, type ItemType, type ModuleType, type OreType, type ModuleView, type SaveState, type Snapshot } from './types';
 import { BUILD_COSTS, START_INVENTORY, START_UNLOCKED, TECHS, RECIPES, type Recipe, type RecipeId, type UpgradeId } from './data';
 
 // Deterministic, integer-only, tick-based simulation. Belts use sub-tile
@@ -17,6 +17,8 @@ const GEN_POWER = 12;
 
 const ERASE_REFUND = 1; // 100% of build cost returned on erase (integer scale; change here to tune)
 const UNDO_LIMIT = 32;
+const RATE_WINDOW = 30; // ticks of history for the rolling produced/consumed rate window
+const ITEM_TYPES = Object.keys(ITEM_COLOR) as ItemType[]; // stable, single source of truth
 
 type UndoEntry =
   | { op: 'place'; cell: number; modType: ModuleType; dir: Dir }
@@ -29,6 +31,15 @@ function getRecipe(id: RecipeId | string): Recipe | undefined {
 /** Default recipe ID for a machine type (first matching recipe). */
 function defaultRecipe(type: ModuleType): RecipeId | undefined {
   return RECIPES.find((r) => r.machines.includes(type))?.id;
+}
+
+/** Fresh rate-counter ring for every item type (all buckets zeroed). */
+function makeRateRing(): Record<ItemType, { buckets: { produced: number; consumed: number }[] }> {
+  const ring = {} as Record<ItemType, { buckets: { produced: number; consumed: number }[] }>;
+  for (const it of ITEM_TYPES) {
+    ring[it] = { buckets: Array.from({ length: RATE_WINDOW }, () => ({ produced: 0, consumed: 0 })) };
+  }
+  return ring;
 }
 
 function mulberry32(seed: number): () => number {
@@ -80,6 +91,9 @@ export class World {
   upgrades = new Set<UpgradeId>();
   private undoLog: UndoEntry[] = [];
   clipboard: { relCol: number; relRow: number; type: ModuleType; dir: Dir }[] = [];
+  // Rate-counter ring: one bucket per tick, indexed by pulse % RATE_WINDOW.
+  // Each bucket is zeroed at the start of its tick and accumulated during advance().
+  private rates: Record<ItemType, { buckets: { produced: number; consumed: number }[] }> = makeRateRing();
 
   cell(x: number, y: number): number {
     return y * this.w + x;
@@ -298,6 +312,7 @@ export class World {
     this.upgrades = new Set();
     this.undoLog = [];
     this.clipboard = [];
+    this.rates = makeRateRing();
     const y = 13;
     this.placeRaw(this.cell(20, 11), 'generator', 1);
     this.placeRaw(this.cell(20, y), 'miner', 1);
@@ -339,6 +354,7 @@ export class World {
     this.upgrades = new Set(s.upgrades ?? []);
     this.undoLog = [];
     this.clipboard = [];
+    this.rates = makeRateRing();
     for (const m of s.modules) this.placeRaw(m.cell, m.type, m.dir);
   }
 
@@ -352,6 +368,16 @@ export class World {
       p.prevSlot = p.slot;
     }
     for (const m of this.modules.values()) m.busy = false;
+
+    // Zero the current-tick rate buckets before any production/consumption.
+    const rateIdx = this.pulse % RATE_WINDOW;
+    for (const it of ITEM_TYPES) {
+      const b = this.rates[it].buckets[rateIdx];
+      b.produced = 0;
+      b.consumed = 0;
+    }
+    const bumpProduced = (it: ItemType, n = 1): void => { this.rates[it].buckets[rateIdx].produced += n; };
+    const bumpConsumed = (it: ItemType, n = 1): void => { this.rates[it].buckets[rateIdx].consumed += n; };
 
     // Occupancy of belt slots; items move one slot/tick and can't overlap, so
     // they pack and back up against whatever is ahead.
@@ -479,6 +505,7 @@ export class World {
             const oreKind = this.ore.get(c) ?? 'iron';
             const oreItem: ItemType = oreKind === 'copper' ? 'copper_ore' : 'ore';
             this.packets.push({ id: this.nextId++, item: oreItem, cell: out, slot: 0, prevCell: out, prevSlot: 0 });
+            bumpProduced(oreItem);
             occ.add(this.microKey(out, 0));
             m.cooldown = minerPeriod;
             m.busy = true;
@@ -497,6 +524,7 @@ export class World {
               for (const inp of recipe.inputs) {
                 const cur = m.inBuf.get(inp.item) ?? 0;
                 m.inBuf.set(inp.item, Math.max(0, cur - inp.amount));
+                bumpConsumed(inp.item, inp.amount);
               }
               m.outBuf += recipe.outputCount;
             }
@@ -505,6 +533,7 @@ export class World {
             const out = this.neighbor(c, m.dir);
             if (out >= 0 && this.modules.get(out)?.type === 'conveyor' && !occ.has(this.microKey(out, 0))) {
               this.packets.push({ id: this.nextId++, item: recipe.output, cell: out, slot: 0, prevCell: out, prevSlot: 0 });
+              bumpProduced(recipe.output);
               occ.add(this.microKey(out, 0));
               m.outBuf--;
             }
@@ -515,6 +544,7 @@ export class World {
         const tech = id ? TECHS.find((t) => t.id === id) : undefined;
         if ((m.inBuf.get('science') ?? 0) > 0 && tech && tech.costItem === 'science' && this.research.progress < tech.cost) {
           m.inBuf.set('science', (m.inBuf.get('science') ?? 0) - 1);
+          bumpConsumed('science');
           m.busy = true;
           this.research.progress++;
           if (this.research.progress >= tech.cost) this.completeResearch(tech.id);
@@ -532,6 +562,26 @@ export class World {
     const d = this.modules.get(cell)?.dir ?? 1;
     const along = (slot + 0.5) / SLOTS - 0.5;
     return [col + 0.5 + DX[d] * along, row + 0.5 + DY[d] * along];
+  }
+
+  /** Sum each item's rate buckets across the whole window. */
+  private rateSnapshot(): Record<ItemType, { produced: number; consumed: number }> {
+    const out = {} as Record<ItemType, { produced: number; consumed: number }>;
+    for (const it of ITEM_TYPES) {
+      let p = 0, c = 0;
+      for (const b of this.rates[it].buckets) { p += b.produced; c += b.consumed; }
+      out[it] = { produced: p, consumed: c };
+    }
+    return out;
+  }
+
+  /** Per-tile minimap category layer (0 empty, ore, or 2+machine). Machines
+   *  overwrite ore on shared cells (drawn last). See Snapshot.minimap. */
+  private minimapLayer(): Uint8Array {
+    const layer = new Uint8Array(this.w * this.h);
+    for (const c of this.ore.keys()) layer[c] = MINIMAP_ORE;
+    for (const [c, m] of this.modules) layer[c] = 2 + MINIMAP_MODULE_ORDER.indexOf(m.type);
+    return layer;
   }
 
   snapshot(pulseMs: number, paused: boolean): Snapshot {
@@ -586,6 +636,8 @@ export class World {
       research: { active: this.research.active, progress: this.research.progress, completed: [...this.research.completed] },
       upgrades: [...this.upgrades],
       clipboard: this.clipboard.map((e) => ({ ...e })),
+      rates: this.rateSnapshot(),
+      minimap: this.minimapLayer(),
     };
   }
 }
