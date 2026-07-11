@@ -9,6 +9,7 @@ import { buildSettings } from './settings';
 import type { QualityOpts } from '../settings';
 import { buildStats, type SparklineHistory } from './stats';
 import { buildMinimap } from './minimap';
+import { buildTutorial, type TutorialController } from './tutorial';
 
 export type { Tool, InspectRow };
 
@@ -40,6 +41,7 @@ export interface Hud {
   initSettings: (opts: QualityOpts) => void;
   setStatsHistory: (s: Snapshot, history: SparklineHistory) => void;
   updateMinimap: (s: Snapshot, px: number, py: number) => void;
+  tutorial: TutorialController;
 }
 
 export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
@@ -48,6 +50,7 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
   const settings = buildSettings(root, { apply: cb.applyQuality });
   const statsPanel = buildStats(root);
   const minimap = buildMinimap(root);
+  const tutorial = buildTutorial(root);
   const hotbar = buildHotbar(root, {
     selectTool: (t) => {
       cb.selectTool(t);
@@ -62,6 +65,7 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
     researchToggle: () => research.toggle(),
     settingsToggle: () => settings.toggle(),
     statsToggle: () => statsPanel.toggle(),
+    tutorialToggle: () => tutorial.replay(),
   });
   hotbar.setActive('conveyor');
   const inspector = buildInspector(root, cb.closeInspect);
@@ -85,5 +89,6 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
     initSettings: (opts) => settings.update(opts),
     setStatsHistory: (s, history) => statsPanel.update(s, history),
     updateMinimap: (s, px, py) => minimap.update(s, px, py),
+    tutorial,
   };
 }

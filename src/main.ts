@@ -189,6 +189,12 @@ async function main(): Promise<void> {
   const currentQuality = loadSettings();
   renderer.setQuality(currentQuality);
 
+  // Peek at the save early: a returning player (has a save) shouldn't get the
+  // first-run tutorial over their existing factory, so mark it done before the
+  // HUD (and tutorial) mount. The Tutorial dock button can still replay it.
+  const saved = readSave();
+  if (saved) { try { localStorage.setItem('driftworks.tutorial.done', '1'); } catch { /* ignore */ } }
+
   // The deterministic simulation runs off the main thread.
   const worker = new Worker(new URL('./sim/worker.ts', import.meta.url), { type: 'module' });
   const send = (c: Command) => worker.postMessage(c);
@@ -318,6 +324,8 @@ async function main(): Promise<void> {
       }
       if (snap.power.deficit && !prevSnap.power.deficit) hud.pushToast('Low power', 'warn');
     }
+    // Tutorial detection runs last, so prevSnap still holds the previous tick.
+    hud.tutorial.tick(snap, prevSnap);
     prevSnap = snap;
   };
 
@@ -526,7 +534,7 @@ async function main(): Promise<void> {
   canvas.addEventListener('pointerleave', () => renderer.setGhost(null));
 
   send({ type: 'speed', pulseMs: SPEEDS[speedIdx] });
-  const saved = readSave();
+  // `saved` was read once near the top (to gate the tutorial); reuse it here.
   if (saved) {
     if (saved.player) renderer.setPlayer(saved.player.x, saved.player.y);
     send({ type: 'load', save: saved });
