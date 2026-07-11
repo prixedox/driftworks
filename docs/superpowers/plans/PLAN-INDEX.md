@@ -19,8 +19,9 @@ first Horizon-2 step). Each plan is self-contained and formatted for execution v
 **Status:** #1 (CI/determinism), #2 (save v3), #3 (copper/circuits/recipes) are **shipped** (built in
 parallel worktrees, merged to `main` in order #1→#2→#3, live). #4 (build UX: erase refund, undo,
 blueprint copy/paste) shipped as **Phase 1 · sub-plan 1.1**; #6 (settings + graphics-quality tiers)
-shipped as **Phase 1 · sub-plan 1.2**; #5 (production stats + minimap) shipped as **Phase 1 · sub-plan 1.3**.
-Only #7 (onboarding tutorial → 1.4) remains to finish Phase 1.
+shipped as **Phase 1 · sub-plan 1.2**; #5 (production stats + minimap) shipped as **Phase 1 · sub-plan 1.3**;
+#7 (onboarding tutorial + objective chip) shipped as **Phase 1 · sub-plan 1.4**. **Phase 1 (Foundation UX)
+is complete** — all of plans #4–#7 built, tested, and live. Next up: master-plan **Phase 2 (Tooltips & UI v2)**.
 
 ## The master plan (DRIFTWORKS 1.0)
 
