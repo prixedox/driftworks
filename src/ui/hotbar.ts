@@ -2,7 +2,7 @@ import { DEFS, type Dir, type ModuleType } from '../sim/types';
 import { svgEl } from './icons';
 import { BUILD_COSTS } from '../sim/data';
 
-export type Tool = ModuleType | 'erase' | 'inspect';
+export type Tool = ModuleType | 'erase' | 'inspect' | 'blueprint';
 
 export interface HotbarCallbacks {
   selectTool: (t: Tool) => void;
@@ -22,13 +22,17 @@ export interface Hotbar {
   setUnlocked: (unlocked: ModuleType[]) => void;
 }
 
-const TOOLS: Tool[] = ['miner', 'conveyor', 'smelter', 'storage', 'generator', 'assembler', 'lab', 'erase', 'inspect'];
+const TOOLS: Tool[] = ['miner', 'conveyor', 'smelter', 'storage', 'generator', 'assembler', 'lab', 'blueprint', 'erase', 'inspect'];
 const DIR_GLYPH = ['↑', '→', '↓', '←'];
 const ICON_KEY: Record<Tool, string> = {
   miner: 'miner', conveyor: 'conveyor', smelter: 'smelter', storage: 'storage',
-  generator: 'generator', assembler: 'assembler', lab: 'lab', erase: 'erase', inspect: 'inspect',
+  generator: 'generator', assembler: 'assembler', lab: 'lab', blueprint: 'blueprint', erase: 'erase', inspect: 'inspect',
 };
-const labelOf = (t: Tool) => (t === 'erase' ? 'Erase' : t === 'inspect' ? 'Info' : DEFS[t].label);
+const labelOf = (t: Tool) =>
+  t === 'erase' ? 'Erase'
+  : t === 'inspect' ? 'Info'
+  : t === 'blueprint' ? 'Blueprint'
+  : DEFS[t].label;
 
 export function buildHotbar(root: HTMLElement, cb: HotbarCallbacks): Hotbar {
   const wrap = document.createElement('div');
@@ -46,7 +50,7 @@ export function buildHotbar(root: HTMLElement, cb: HotbarCallbacks): Hotbar {
     key.className = 'dw-key';
     key.textContent = String(i + 1);
     b.append(key);
-    if (t !== 'erase' && t !== 'inspect') {
+    if (t !== 'erase' && t !== 'inspect' && t !== 'blueprint') {
       const cost = document.createElement('span');
       cost.className = 'dw-cost';
       cost.textContent = String(BUILD_COSTS[t].amount);
@@ -103,7 +107,7 @@ export function buildHotbar(root: HTMLElement, cb: HotbarCallbacks): Hotbar {
     },
     setUnlocked(unlocked) {
       for (const [t, b] of tileMap) {
-        if (t === 'erase' || t === 'inspect') continue;
+        if (t === 'erase' || t === 'inspect' || t === 'blueprint') continue;
         const isUnlocked = unlocked.includes(t);
         b.classList.toggle('locked', !isUnlocked);
         const lockEl = b.querySelector<HTMLElement>('.dw-lock');

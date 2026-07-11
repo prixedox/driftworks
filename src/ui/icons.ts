@@ -63,6 +63,13 @@ export const ICONS: Record<string, string> = {
     <line x1="7" y1="10" x2="13" y2="10"/>
   </svg>`,
 
+  blueprint: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <!-- copy a region: dashed source frame + solid stamped frame + copy arrow -->
+    <rect x="3" y="3" width="11" height="11" rx="1" stroke-dasharray="3 2"/>
+    <rect x="10" y="10" width="11" height="11" rx="1"/>
+    <polyline points="14,6 18,6 18,10"/>
+  </svg>`,
+
   pulse: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <!-- baseline -->
     <polyline points="2,12 6,12 9,5 12,19 15,9 18,12 22,12"/>

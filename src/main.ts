@@ -186,10 +186,14 @@ async function main(): Promise<void> {
   const worker = new Worker(new URL('./sim/worker.ts', import.meta.url), { type: 'module' });
   const send = (c: Command) => worker.postMessage(c);
 
-  let tool: ModuleType | 'erase' | 'inspect' = 'conveyor';
+  let tool: ModuleType | 'erase' | 'inspect' | 'blueprint' = 'conveyor';
   let dir: Dir = 1;
   let paused = false;
   let inspectCell: number | null = null;
+  let bpCorner1 = -1;
+  let bpCorner2 = -1;
+  let bpDragging = false;
+  let bpHasClipboard = false; // true after a copy; paste mode until next copy
   const SPEEDS = [300, 150, 80, 40]; // ms per tick (belts move 1 of 4 slots per tick)
   let speedIdx = 1;
 
@@ -200,7 +204,8 @@ async function main(): Promise<void> {
   const hud = buildHud(root, {
     selectTool: (t) => {
       tool = t;
-      if (t === 'inspect' || t === 'erase') renderer.setGhost(null);
+      if (t === 'inspect' || t === 'erase' || t === 'blueprint') renderer.setGhost(null);
+      if (t !== 'blueprint') { bpHasClipboard = false; bpCorner1 = -1; bpCorner2 = -1; bpDragging = false; }
       updateAffordances();
     },
     rotate: () => {
@@ -331,6 +336,11 @@ async function main(): Promise<void> {
   };
   window.addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && k === 'z') {
+      e.preventDefault();
+      send({ type: 'undo' });
+      return;
+    }
     if (k === 'q') {
       renderer.rotateView(-1);
       return;
@@ -363,15 +373,26 @@ async function main(): Promise<void> {
 
   const buildAt = (cell: number) => {
     if (tool === 'erase') send({ type: 'remove', cell });
-    else if (tool !== 'inspect') send({ type: 'place', cell, module: tool, dir });
+    else if (tool !== 'inspect' && tool !== 'blueprint') send({ type: 'place', cell, module: tool, dir });
   };
 
   const updateGhost = (cell: number) => {
-    if (cell < 0 || tool === 'inspect' || tool === 'erase' || !latest) {
+    if (cell < 0 || tool === 'inspect' || tool === 'erase' || tool === 'blueprint' || !latest) {
       renderer.setGhost(null);
       return;
     }
     renderer.setGhost({ cell, type: tool, dir, valid: placementValid(cell, tool, latest) });
+  };
+
+  const updateBlueprintGhost = (originCell: number) => {
+    if (originCell < 0 || !latest || latest.clipboard.length === 0) {
+      renderer.setGhost(null);
+      return;
+    }
+    // Show the first clipboard entry as a single ghost to indicate the paste origin.
+    // (A full multi-cell ghost is a renderer enhancement deferred to a later task.)
+    const first = latest.clipboard[0];
+    renderer.setGhost({ cell: originCell, type: first.type, dir: first.dir, valid: true });
   };
 
   const updateAffordances = () => {
@@ -388,6 +409,21 @@ async function main(): Promise<void> {
       updateAffordances();
       return;
     }
+    if (tool === 'blueprint') {
+      if (!bpHasClipboard) {
+        // Selection drag mode: start corner
+        bpCorner1 = cell;
+        bpCorner2 = cell;
+        bpDragging = true;
+        canvas.classList.add('bp-selecting');
+        canvas.setPointerCapture?.(ev.pointerId);
+      } else {
+        // Paste mode: send paste command at tapped cell
+        send({ type: 'blueprint', action: 'paste', originCell: cell });
+        bpHasClipboard = false; // clear after paste so user can start a new copy
+      }
+      return;
+    }
     dragging = true;
     lastCell = cell;
     buildAt(cell);
@@ -397,6 +433,16 @@ async function main(): Promise<void> {
 
   canvas.addEventListener('pointermove', (ev) => {
     const cell = cellAt(ev);
+    if (tool === 'blueprint') {
+      if (bpDragging && cell >= 0) {
+        bpCorner2 = cell;
+        // Visual feedback: show a ghost at the current hover (selection end corner)
+        renderer.setGhost({ cell, type: 'conveyor', dir, valid: true });
+      } else if (!bpDragging && bpHasClipboard && cell >= 0) {
+        updateBlueprintGhost(cell);
+      }
+      return;
+    }
     if (!dragging) {
       if (ev.pointerType === 'mouse') updateGhost(cell);
       return;
@@ -419,6 +465,30 @@ async function main(): Promise<void> {
   });
 
   const endDrag = (ev: PointerEvent) => {
+    if (tool === 'blueprint' && bpDragging) {
+      bpDragging = false;
+      canvas.classList.remove('bp-selecting');
+      // Collect all cells in the bounding rectangle [corner1..corner2]
+      if (bpCorner1 >= 0 && bpCorner2 >= 0 && latest) {
+        const c1col = bpCorner1 % latest.w, c1row = Math.floor(bpCorner1 / latest.w);
+        const c2col = bpCorner2 % latest.w, c2row = Math.floor(bpCorner2 / latest.w);
+        const minCol = Math.min(c1col, c2col), maxCol = Math.max(c1col, c2col);
+        const minRow = Math.min(c1row, c2row), maxRow = Math.max(c1row, c2row);
+        const cells: number[] = [];
+        for (let r = minRow; r <= maxRow; r++) {
+          for (let c = minCol; c <= maxCol; c++) {
+            cells.push(r * latest.w + c);
+          }
+        }
+        send({ type: 'blueprint', action: 'copy', cells });
+        bpHasClipboard = true;
+      }
+      bpCorner1 = -1;
+      bpCorner2 = -1;
+      canvas.releasePointerCapture?.(ev.pointerId);
+      renderer.setGhost(null);
+      return;
+    }
     renderer.setGhost(null);
     dragging = false;
     lastCell = -1;
