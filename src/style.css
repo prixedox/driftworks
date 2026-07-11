@@ -566,3 +566,78 @@ canvas.bp-selecting {
 .dw-toggle-input:checked + .dw-toggle-track .dw-toggle-thumb {
   transform: translateX(16px);
 }
+
+/* ── Stats panel ────────────────────────────────────────────────── */
+.dw-stats {
+  position: fixed;
+  top: 56px;
+  right: 8px;
+  width: 250px;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  z-index: 40;
+}
+.dw-stats.show { display: flex; }
+
+.dw-stats-header {
+  font: 700 11px/1.4 ui-monospace, monospace;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  padding-bottom: 4px;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.dw-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dw-stats-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 82px;
+  font: 600 10px/1 ui-monospace, monospace;
+  color: var(--muted);
+}
+.dw-stats-label .dw-icon { width: 14px; height: 14px; flex-shrink: 0; }
+.dw-stats-nums {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  font: 600 9px/1 ui-monospace, monospace;
+  flex: 1;
+}
+.dw-stats-produced { color: #6fcf97; }
+.dw-stats-consumed { color: #eb5757; }
+.dw-stats-sep { color: var(--muted); }
+.dw-sparkline {
+  display: block;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--panel) 60%, transparent);
+}
+.dw-stats-power {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid color-mix(in srgb, var(--muted) 20%, transparent);
+  font: 600 10px/1 ui-monospace, monospace;
+  color: var(--muted);
+  gap: 6px;
+}
+.dw-stats-power .dw-icon { width: 14px; height: 14px; }
+.dw-stats-power.deficit .dw-stats-powertext { color: #eb5757; }
+
+/* ── Minimap ────────────────────────────────────────────────────── */
+.dw-minimap {
+  position: fixed;
+  bottom: 104px; /* sit above the hotbar */
+  right: 8px;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.6);
+  z-index: 35;
+  pointer-events: none; /* transparent to touch/mouse */
+}
+.dw-minimap canvas { display: block; }
