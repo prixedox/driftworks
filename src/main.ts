@@ -6,6 +6,8 @@ import { placementValid } from './ui/placement';
 import { RECIPES } from './sim/data';
 import type { Command, Dir, ModuleType, SaveState, Snapshot, WorkerMessage } from './sim/types';
 import { START_INVENTORY, START_UNLOCKED } from './sim/data';
+import { loadSettings, saveSettings } from './settings';
+import type { QualityOpts } from './settings';
 
 const SAVE_KEY = 'driftworks.save.v3';
 const V2_SAVE_KEY = 'driftworks.save.v2';
@@ -182,6 +184,10 @@ async function main(): Promise<void> {
   const renderer = new Renderer();
   await renderer.init(root);
 
+  // Graphics quality: load persisted (or auto-detected) settings and apply now.
+  const currentQuality = loadSettings();
+  renderer.setQuality(currentQuality);
+
   // The deterministic simulation runs off the main thread.
   const worker = new Worker(new URL('./sim/worker.ts', import.meta.url), { type: 'module' });
   const send = (c: Command) => worker.postMessage(c);
@@ -242,8 +248,13 @@ async function main(): Promise<void> {
     selectResearch,
     contributeResearch,
     selectRecipe: selectRecipeCmd,
+    applyQuality: (opts: QualityOpts) => {
+      renderer.setQuality(opts);
+      saveSettings(opts);
+    },
   });
   hud.setDir(dir);
+  hud.initSettings(currentQuality);
   hud.setSpeed(SPEEDS[speedIdx]);
 
   let latest: Snapshot | null = null;

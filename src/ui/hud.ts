@@ -5,6 +5,8 @@ import { buildInspector, type InspectRow } from './inspector';
 import { buildJoystick } from './joystick';
 import { buildToasts } from './toasts';
 import { buildResearch } from './research';
+import { buildSettings } from './settings';
+import type { QualityOpts } from '../settings';
 
 export type { Tool, InspectRow };
 
@@ -22,6 +24,7 @@ export interface HudCallbacks {
   contributeResearch: () => void;
   /** Forward-compat hook for recipe changes; inspector rows currently call the sim directly. */
   selectRecipe: (cell: number, recipe: string) => void;
+  applyQuality: (opts: QualityOpts) => void;
 }
 export interface Hud {
   setStats: (s: Snapshot) => void;
@@ -32,11 +35,13 @@ export interface Hud {
   showInspect: (title: string, rows: InspectRow[]) => void;
   hideInspect: () => void;
   pushToast: (text: string, kind?: 'info' | 'warn') => void;
+  initSettings: (opts: QualityOpts) => void;
 }
 
 export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
   const status = buildStatusBar(root);
   const research = buildResearch(root, { select: cb.selectResearch, contribute: cb.contributeResearch });
+  const settings = buildSettings(root, { apply: cb.applyQuality });
   const hotbar = buildHotbar(root, {
     selectTool: (t) => {
       cb.selectTool(t);
@@ -49,6 +54,7 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
     rotateView: cb.rotateView,
     reset: cb.reset,
     researchToggle: () => research.toggle(),
+    settingsToggle: () => settings.toggle(),
   });
   hotbar.setActive('conveyor');
   const inspector = buildInspector(root, cb.closeInspect);
@@ -69,5 +75,6 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
     showInspect: (t, rows) => inspector.show(t, rows),
     hideInspect: () => inspector.hide(),
     pushToast: (text, kind) => toasts.push(text, kind),
+    initSettings: (opts) => settings.update(opts),
   };
 }
