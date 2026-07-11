@@ -123,6 +123,9 @@ export class Effects {
 
   private cursor = 0; // round-robin allocation hint
 
+  /** When false, the Points group is hidden — no GPU draw call, no spawning. */
+  private enabled = true;
+
   // Per-emitter spawn accumulators (keyed by cell) so throttling is smooth and
   // independent of frame rate. Cleared lazily; map size ~= machine count.
   private accum = new Map<number, number>();
@@ -142,6 +145,23 @@ export class Effects {
     const dpr = Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2);
     const h = typeof window !== 'undefined' ? window.innerHeight : 800;
     return Math.max(1, h * dpr);
+  }
+
+  setEnabled(on: boolean): void {
+    this.enabled = on;
+    if (this.group) this.group.visible = on;
+    // When disabling, immediately zero all alpha so no ghost particles linger
+    // if the group becomes visible again later.
+    if (!on && this.alphaAttr) {
+      (this.alphaAttr.array as Float32Array).fill(0);
+      this.alphaAttr.needsUpdate = true;
+      // Also kill all live slots so no particles resume on re-enable.
+      this.life.fill(0);
+      this.age.fill(0);
+      this.cursor = 0;
+      this.accum.clear();
+      this.pktAccum.clear();
+    }
   }
 
   /** Add the effects group(s) to the scene. */
@@ -194,7 +214,7 @@ export class Effects {
   update(dt: number, _now: number, s: Snapshot, h: EffectHelpers): void {
     // Not attached, or sim paused → freeze: leave the buffers as-is (particles
     // simply hang in place until play resumes). No spawning, no aging.
-    if (!this.group || s.paused) return;
+    if (!this.group || s.paused || !this.enabled) return;
     // clamp dt so a tab-switch hitch can't fling particles across the map
     const d = Math.min(dt, 0.05);
 

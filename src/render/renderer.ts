@@ -35,6 +35,7 @@ import { buildScenery, type Scenery } from './scenery';
 import { Effects } from './effects';
 import { PostFX } from './postfx';
 import { FOG, LIGHT, PALETTE, TONE_EXPOSURE, darken } from './style';
+import type { QualityOpts } from '../settings';
 
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 const WALK_SPEED = 6.5; // tiles / second
@@ -151,6 +152,28 @@ export class Renderer {
     window.addEventListener('resize', () => this.onResize());
     this.last = performance.now();
     this.renderer.setAnimationLoop(() => this.frame());
+  }
+
+  /**
+   * Apply graphics quality options live. Safe to call at any time; takes effect
+   * on the next frame. Toggling shadows requires re-enabling the shadow map on
+   * the WebGLRenderer AND the directional light together — doing only one
+   * produces no shadows (map disabled) or wasted shadow-map renders (light on,
+   * map off).
+   */
+  setQuality(opts: QualityOpts): void {
+    // PostFX (bloom + EffectComposer overhead)
+    this.postfx.setEnabled(opts.bloom);
+
+    // Shadows — disable castShadow on the key light to skip the shadow pass.
+    // Also toggle per-object receive to avoid sampling a stale shadow map.
+    this.renderer.shadowMap.enabled = opts.shadows;
+    this.dirLight.castShadow = opts.shadows;
+    // Force shadow map refresh on re-enable so it doesn't show a one-frame stale map.
+    if (opts.shadows) this.dirLight.shadow.needsUpdate = true;
+
+    // Particles
+    this.effects.setEnabled(opts.particles);
   }
 
   get canvas(): HTMLCanvasElement {
