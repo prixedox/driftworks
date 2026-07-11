@@ -18,7 +18,8 @@ first Horizon-2 step). Each plan is self-contained and formatted for execution v
 
 **Status:** #1 (CI/determinism), #2 (save v3), #3 (copper/circuits/recipes) are **shipped** (built in
 parallel worktrees, merged to `main` in order #1→#2→#3, live). #4 (build UX: erase refund, undo,
-blueprint copy/paste) shipped as **Phase 1 · sub-plan 1.1**. #5–#7 remain (Phase 1 sub-plans 1.2–1.4).
+blueprint copy/paste) shipped as **Phase 1 · sub-plan 1.1**; #6 (settings + graphics-quality tiers)
+shipped as **Phase 1 · sub-plan 1.2**. #5 (stats/minimap → 1.3) and #7 (onboarding → 1.4) remain.
 
 ## The master plan (DRIFTWORKS 1.0)
 
