@@ -7,6 +7,8 @@ import { buildToasts } from './toasts';
 import { buildResearch } from './research';
 import { buildSettings } from './settings';
 import type { QualityOpts } from '../settings';
+import { buildStats, type SparklineHistory } from './stats';
+import { buildMinimap } from './minimap';
 
 export type { Tool, InspectRow };
 
@@ -36,12 +38,16 @@ export interface Hud {
   hideInspect: () => void;
   pushToast: (text: string, kind?: 'info' | 'warn') => void;
   initSettings: (opts: QualityOpts) => void;
+  setStatsHistory: (s: Snapshot, history: SparklineHistory) => void;
+  updateMinimap: (s: Snapshot, px: number, py: number) => void;
 }
 
 export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
   const status = buildStatusBar(root);
   const research = buildResearch(root, { select: cb.selectResearch, contribute: cb.contributeResearch });
   const settings = buildSettings(root, { apply: cb.applyQuality });
+  const statsPanel = buildStats(root);
+  const minimap = buildMinimap(root);
   const hotbar = buildHotbar(root, {
     selectTool: (t) => {
       cb.selectTool(t);
@@ -55,6 +61,7 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
     reset: cb.reset,
     researchToggle: () => research.toggle(),
     settingsToggle: () => settings.toggle(),
+    statsToggle: () => statsPanel.toggle(),
   });
   hotbar.setActive('conveyor');
   const inspector = buildInspector(root, cb.closeInspect);
@@ -76,5 +83,7 @@ export function buildHud(root: HTMLElement, cb: HudCallbacks): Hud {
     hideInspect: () => inspector.hide(),
     pushToast: (text, kind) => toasts.push(text, kind),
     initSettings: (opts) => settings.update(opts),
+    setStatsHistory: (s, history) => statsPanel.update(s, history),
+    updateMinimap: (s, px, py) => minimap.update(s, px, py),
   };
 }

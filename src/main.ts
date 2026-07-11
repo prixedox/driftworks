@@ -8,6 +8,7 @@ import type { Command, Dir, ModuleType, SaveState, Snapshot, WorkerMessage } fro
 import { START_INVENTORY, START_UNLOCKED } from './sim/data';
 import { loadSettings, saveSettings } from './settings';
 import type { QualityOpts } from './settings';
+import type { SparklineHistory } from './ui/stats';
 
 const SAVE_KEY = 'driftworks.save.v3';
 const V2_SAVE_KEY = 'driftworks.save.v2';
@@ -263,6 +264,18 @@ async function main(): Promise<void> {
   let lastPlateToast = 0;
   let lastCopperPlateToast = 0;
   let lastCollect = 0;
+
+  // Client-side sparkline ring buffer (visualisation only — NOT game state).
+  const HISTORY_CAP = 64;
+  const sparkHistory = {} as SparklineHistory;
+  const pushHistory = (s: Snapshot) => {
+    for (const item of Object.keys(s.rates) as (keyof SparklineHistory)[]) {
+      const arr = (sparkHistory[item] ??= []);
+      arr.push(s.rates[item].produced);
+      if (arr.length > HISTORY_CAP) arr.shift();
+    }
+  };
+
   worker.onmessage = (e: MessageEvent<WorkerMessage>) => {
     if (e.data.type !== 'snapshot') return;
     const snap = e.data.snapshot;
@@ -273,6 +286,9 @@ async function main(): Promise<void> {
     if (inspectCell != null) refreshInspect();
     updateAffordances();
     const pl = renderer.getPlayer();
+    pushHistory(snap);
+    hud.setStatsHistory(snap, sparkHistory);
+    hud.updateMinimap(snap, pl.x, pl.y);
     const near = snap.modules.some((m) => {
       if (m.type !== 'storage') return false;
       const mx = (m.cell % snap.w) + 0.5;

@@ -14,6 +14,7 @@ export interface HotbarCallbacks {
   reset: () => void;
   researchToggle: () => void;
   settingsToggle: () => void;
+  statsToggle: () => void;
 }
 export interface Hotbar {
   setActive: (t: Tool) => void;
@@ -83,8 +84,9 @@ export function buildHotbar(root: HTMLElement, cb: HotbarCallbacks): Hotbar {
   explainBtn.classList.add('active');
   const resetBtn = ctrl('Reset', () => cb.reset());
   const researchBtn = ctrl('Research', () => cb.researchToggle());
+  const statsBtn = ctrl('Stats', () => cb.statsToggle());
   const settingsBtn = ctrl('⚙ Settings', () => cb.settingsToggle());
-  dock.append(dirBtn, viewBtn, pauseBtn, speedBtn, explainBtn, researchBtn, settingsBtn, resetBtn);
+  dock.append(dirBtn, viewBtn, pauseBtn, speedBtn, explainBtn, researchBtn, statsBtn, settingsBtn, resetBtn);
 
   wrap.append(tiles, dock);
   root.append(wrap);
